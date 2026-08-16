@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rubik's Cube Solver</title>
+<style>* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0e1117; --panel: #161b23; --panel2: #1d2430; --line: #2a323f;
+  --txt: #e8edf4; --dim: #93a1b5; --accent: #4c8dff; --ok: #34c77b; --warn: #ffb020; --bad: #ff5c5c;
+}
+body {
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg); color: var(--txt); -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 80px; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+h1 { font-size: 22px; letter-spacing: -.3px; }
+header .sub { color: var(--dim); font-size: 13px; }
+h2 { font-size: 16px; margin-bottom: 4px; }
+.muted { color: var(--dim); font-size: 13px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 16px; }
+.card.disabled { opacity: .42; pointer-events: none; }
+.stepnum {
+  display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+  color: #fff; font-size: 12px; font-weight: 700; align-items: center; justify-content: center; margin-right: 8px;
+}
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.spread { justify-content: space-between; }
+button {
+  font: inherit; font-size: 14px; padding: 9px 15px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel2); color: var(--txt); cursor: pointer; transition: .12s;
+}
+button:hover:not(:disabled) { border-color: #46566d; background: #232c3a; }
+button:disabled { opacity: .4; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #3d7cf0; }
+button.ghost { background: transparent; }
+.tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.tabs button { border-radius: 999px; }
+.tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pane { display: none; } .pane.on { display: block; }
+
+/* ---- capture ---- */
+.capture-grid { display: grid; grid-template-columns: minmax(280px, 1fr) 300px; gap: 18px; }
+@media (max-width: 820px) { .capture-grid { grid-template-columns: 1fr; } }
+.stage { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 1/1; }
+.stage video, .stage img, .stage canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+.overlay .box {
+  position: absolute; left: 14%; top: 14%; width: 72%; height: 72%;
+  border: 2px solid rgba(255,255,255,.9); border-radius: 6px;
+  box-shadow: 0 0 0 2000px rgba(0,0,0,.34);
+}
+.overlay .box i { position: absolute; border: 1px dashed rgba(255,255,255,.45); }
+.facelist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.facechip {
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px; text-align: center; cursor: pointer;
+  background: var(--panel2); font-size: 12px;
+}
+.facechip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.facechip.done { border-color: var(--ok); }
+.facechip b { display: block; font-size: 17px; margin-bottom: 2px; }
+.facechip .st { color: var(--dim); font-size: 11px; }
+.facechip.done .st { color: var(--ok); }
+.hint { background: var(--panel2); border-radius: 9px; padding: 11px 13px; font-size: 13px; color: var(--dim); }
+.hint b { color: var(--txt); }
+.thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 12px; }
+.thumbs .t { position: relative; aspect-ratio: 1/1; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+.thumbs .t img { width: 100%; height: 100%; object-fit: cover; }
+.thumbs .t span { position: absolute; left: 4px; top: 3px; font-size: 11px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+.thumbs .t.empty { display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; background: var(--panel2); }
+input[type=file] { display: none; }
+.drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 26px; text-align: center; color: var(--dim); cursor: pointer; }
+.drop:hover { border-color: var(--accent); color: var(--txt); }
+
+/* ---- net editor ---- */
+.net { display: grid; grid-template-columns: repeat(4, auto); gap: 5px; justify-content: center; margin: 8px 0 4px; }
+.face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; background: #05070a; border-radius: 5px; position: relative; }
+.face .lbl { position: absolute; top: -15px; left: 2px; font-size: 10px; color: var(--dim); letter-spacing: .5px; }
+.sticker { width: 30px; height: 30px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; position: relative; }
+.sticker.low::after { content: ''; position: absolute; inset: 0; border: 2px dashed rgba(255,255,255,.85); border-radius: 3px; }
+.sticker.sel { border-color: #fff; }
+.sticker.centre { cursor: not-allowed; }
+.sticker.centre::before { content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: rgba(0,0,0,.35); }
+@media (max-width: 560px) { .sticker { width: 22px; height: 22px; } }
+.palette { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.swatch { width: 30px; height: 30px; border-radius: 6px; border: 2px solid var(--line); cursor: pointer; }
+.swatch.on { border-color: #fff; }
+.status { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin-top: 12px; }
+.status.ok { background: rgba(52,199,123,.1); border: 1px solid rgba(52,199,123,.35); color: #8ee9b8; }
+.status.bad { background: rgba(255,92,92,.1); border: 1px solid rgba(255,92,92,.35); color: #ffb4b4; }
+.status.info { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
+
+/* ---- solve + player ---- */
+.bar { height: 7px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .18s; }
+.solve-grid { display: grid; grid-template-columns: minmax(300px, 1.1fr) 1fr; gap: 20px; }
+@media (max-width: 880px) { .solve-grid { grid-template-columns: 1fr; } }
+#viewer { width: 100%; aspect-ratio: 1/1; background: radial-gradient(circle at 50% 40%, #1b2431, #0b0e13); border-radius: 12px; border: 1px solid var(--line); }
+.moves { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.mv {
+  min-width: 42px; text-align: center; padding: 7px 9px; border-radius: 7px; background: var(--panel2);
+  border: 1px solid var(--line); font-weight: 600; font-size: 14px; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.mv.done { opacity: .45; }
+.mv.now { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steplist { margin-top: 14px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; }
+.steplist .s { display: flex; gap: 11px; padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+.steplist .s:last-child { border-bottom: 0; }
+.steplist .s.now { background: rgba(76,141,255,.14); }
+.steplist .s .n { color: var(--dim); min-width: 20px; font-variant-numeric: tabular-nums; }
+.steplist .s .m { font-weight: 700; min-width: 30px; }
+.steplist .s .d { color: var(--dim); }
+.big { font-size: 30px; font-weight: 700; letter-spacing: -.5px; }
+.kv { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 4px; }
+.kv div span { display: block; color: var(--dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; }
+input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Rubik's Cube Solver</h1>
+    <span class="sub">Scan it, solve it in ~20 moves, watch every turn.</span>
+  </header>
+
+  <!-- ------------------------------------------------------------ STEP 1 -->
+  <div class="card">
+    <h2><span class="stepnum">1</span>Scan your cube</h2>
+    <p class="muted">Six faces gives the most reliable read. Five works too — the solver reconstructs the last one — but it can be ambiguous.</p>
+
+    <div class="tabs" style="margin-top:14px">
+      <button class="on" data-pane="photos">Photos</button>
+      <button data-pane="video">Video file</button>
+      <button data-pane="camera">Live camera</button>
+    </div>
+
+    <div class="capture-grid">
+      <div>
+        <!-- photos -->
+        <div class="pane on" id="pane-photos">
+          <div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
+          <div class="row" style="margin-top:12px">
+            <button id="btnBulk">Choose 6 photos at once</button>
+            <span class="muted">assigned in the order U, R, F, D, L, B</span>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <span class="muted">Shoot each face square-on and centred, filling most of the frame. Only the middle square of the photo is read.</span>
+          </div>
+        </div>
+
+        <!-- video -->
+        <div class="pane" id="pane-video">
+          <div class="stage"><video id="vid" playsinline muted></video>
+            <div class="overlay"><div class="box"></div></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button id="btnVideoFile" class="primary">Choose a video</button>
+          </div>
+          <div id="videoTools" style="display:none;margin-top:12px">
+            <input type="range" id="scrub" min="0" max="100" step="0.05" value="0" style="width:100%">
+            <div class="row" style="margin-top:8px">
+              <button id="btnVidPlay">Play</button>
+              <button id="btnVidGrab" class="primary">Capture this face</button>
+              <button id="btnVidAuto" class="ghost">Auto-grab 6 frames</button>
+            </div>
+            <p class="muted" id="vidStatus" style="margin-top:8px">Scrub to a frame where one face fills the square, pick the face on the right, then capture.</p>
+          </div>
+        </div>
+
+        <!-- camera -->
+        <div class="pane" id="pane-camera">
+          <div class="stage"><video id="cam" playsinline muted></video>
+            <div class="overlay"><div class="box"></div></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button id="btnCamStart" class="primary">Start camera</button>
+            <span id="camTools" style="display:none">
+              <button id="btnCamGrab" class="primary">Capture</button>
+              <button id="btnCamStop" class="ghost">Stop</button>
+            </span>
+          </div>
+          <p class="muted" id="camStatus" style="margin-top:8px">Works on a phone browser. The page must be on https for camera access.</p>
+        </div>
+      </div>
+
+      <!-- face picker -->
+      <div>
+        <div class="hint" id="holdHint" style="margin-bottom:12px"></div>
+        <div class="facelist" id="faceList"></div>
+        <div class="thumbs" id="thumbs"></div>
+        <div class="row spread" style="margin-top:14px">
+          <span class="muted" id="capCount"></span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnAnalyse" class="primary" disabled>Read the colours</button>
+          <button id="btnDemo" class="ghost" title="Skip scanning and try a random scramble">Try a random cube</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="filePicker">
+  </div>
+
+  <!-- ------------------------------------------------------------ STEP 2 -->
+  <div class="card disabled" id="reviewCard">
+    <h2><span class="stepnum">2</span>Check the read</h2>
+    <p class="muted">Dashed outlines are squares the detector wasn't confident about. Pick a colour, then click any square to correct it. Centres are fixed.</p>
+    <div class="row" style="margin:14px 0 20px">
+      <span class="muted">Paint with:</span>
+      <div class="palette" id="palette"></div>
+    </div>
+    <div class="net" id="net"></div>
+    <div class="status info" id="valStatus">Waiting for a scan.</div>
+  </div>
+
+  <!-- ------------------------------------------------------------ STEP 3 -->
+  <div class="card disabled" id="solveCard">
+    <h2><span class="stepnum">3</span>Solve &amp; verify</h2>
+    <div class="row" style="margin-top:12px">
+      <button id="btnSolve" class="primary">Find the shortest solution</button>
+      <label class="muted">search time
+        <input type="range" id="budget" min="1" max="30" value="4" style="vertical-align:middle;width:130px">
+        <span id="budgetVal">4s</span>
+      </label>
+    </div>
+    <div class="bar"><i id="solveBar"></i></div>
+    <p class="muted" id="solveMsg" style="margin-top:8px">The first solve builds ~4&nbsp;MB of lookup tables. That takes a couple of seconds, once per session.</p>
+
+    <div id="solveOut" style="display:none;margin-top:20px">
+      <div class="kv">
+        <div><span>Moves</span><b class="big" id="moveCount">0</b></div>
+        <div style="flex:1;min-width:240px"><span>Checked</span>
+          <div style="color:var(--ok)" id="verifyLine"></div>
+          <div class="muted" id="optLine"></div>
+        </div>
+      </div>
+
+      <div class="solve-grid" style="margin-top:18px">
+        <div>
+          <div id="viewer"></div>
+          <div class="row" style="margin-top:12px;justify-content:center">
+            <button id="btnReset">&#8676; Start</button>
+            <button id="btnPrev">&#8592; Back</button>
+            <button id="btnPlay" class="primary">&#9654; Play</button>
+            <button id="btnNext">Next &#8594;</button>
+          </div>
+          <div class="row" style="margin-top:10px;justify-content:center">
+            <label class="muted">speed
+              <input type="range" id="speed" min="120" max="1400" step="20" value="420" style="vertical-align:middle;width:130px">
+              <span id="speedVal">0.42s / move</span>
+            </label>
+          </div>
+          <p class="muted" style="text-align:center;margin-top:8px">Drag the cube to look around. Arrow keys step, space plays.</p>
+        </div>
+
+        <div>
+          <div style="font-weight:700;font-size:17px" id="stepLabel"></div>
+          <div class="muted" id="stepDesc" style="min-height:40px"></div>
+          <div class="moves" id="moves"></div>
+          <div class="steplist" id="steps"></div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:16px">
+        Notation: a bare letter is a quarter turn clockwise looking at that face, <b>'</b> is anti-clockwise,
+        <b>2</b> is a half turn. Hold the cube the same way you scanned it: the face you photographed as
+        <b>F</b> facing you, <b>U</b> on top.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script id="solverSource">/* ============================================================================
+ * Rubik's Cube solver - Kociemba two-phase algorithm with optimal-seeking search
+ * Self-contained. Works in the browser (window.CubeSolver) and in Node.
+ * ==========================================================================*/
+(function (global) {
+'use strict';
+
+// ---------------------------------------------------------------- constants
+var MOVE_NAMES = ["U","U2","U'","R","R2","R'","F","F2","F'","D","D2","D'","L","L2","L'","B","B2","B'"];
+var FACE_NAMES = ["U","R","F","D","L","B"];
+
+// facelet indices: U=0..8 R=9..17 F=18..26 D=27..35 L=36..44 B=45..53
+var CORNER_FACELET = [
+  [8, 9,20],[6,18,38],[0,36,47],[2,45,11],
+  [29,26,15],[27,44,24],[33,53,42],[35,17,51]
+];
+var EDGE_FACELET = [
+  [5,10],[7,19],[3,37],[1,46],[32,16],[28,25],
+  [30,43],[34,52],[23,12],[21,41],[50,39],[48,14]
+];
+// colours expressed as face ids: U=0 R=1 F=2 D=3 L=4 B=5
+var CORNER_COLOR = [
+  [0,1,2],[0,2,4],[0,4,5],[0,5,1],
+  [3,2,1],[3,4,2],[3,5,4],[3,1,5]
+];
+var EDGE_COLOR = [
+  [0,1],[0,2],[0,4],[0,5],[3,1],[3,2],
+  [3,4],[3,5],[2,1],[2,4],[5,4],[5,1]
+];
+var CORNER_NAMES = ["URF","UFL","ULB","UBR","DFR","DLF","DBL","DRB"];
+var EDGE_NAMES   = ["UR","UF","UL","UB","DR","DF","DL","DB","FR","FL","BL","BR"];
+
+// ------------------------------------------------------------- cubie cubes
+function CubieCube(cp, co, ep, eo) {
+  this.cp = cp ? cp.slice() : [0,1,2,3,4,5,6,7];
+  this.co = co ? co.slice() : [0,0,0,0,0,0,0,0];
+  this.ep = ep ? ep.slice() : [0,1,2,3,4,5,6,7,8,9,10,11];
+  this.eo = eo ? eo.slice() : [0,0,0,0,0,0,0,0,0,0,0,0];
+}
+CubieCube.prototype.clone = function () {
+  return new CubieCube(this.cp, this.co, this.ep, this.eo);
+};
+
+// "this * b" == apply this, then apply b
+function multiply(a, b) {
+  var cp = new Array(8), co = new Array(8), ep = new Array(12), eo = new Array(12), i;
+  for (i = 0; i < 8; i++) {
+    cp[i] = a.cp[b.cp[i]];
+    co[i] = (a.co[b.cp[i]] + b.co[i]) % 3;
+  }
+  for (i = 0; i < 12; i++) {
+    ep[i] = a.ep[b.ep[i]];
+    eo[i] = (a.eo[b.ep[i]] + b.eo[i]) % 2;
+  }
+  return new CubieCube(cp, co, ep, eo);
+}
+
+var BASIC = [
+  // U
+  new CubieCube([3,0,1,2,4,5,6,7],[0,0,0,0,0,0,0,0],
+                [3,0,1,2,4,5,6,7,8,9,10,11],[0,0,0,0,0,0,0,0,0,0,0,0]),
+  // R
+  new CubieCube([4,1,2,0,7,5,6,3],[2,0,0,1,1,0,0,2],
+                [8,1,2,3,11,5,6,7,4,9,10,0],[0,0,0,0,0,0,0,0,0,0,0,0]),
+  // F
+  new CubieCube([1,5,2,3,0,4,6,7],[1,2,0,0,2,1,0,0],
+                [0,9,2,3,4,8,6,7,1,5,10,11],[0,1,0,0,0,1,0,0,1,1,0,0]),
+  // D
+  new CubieCube([0,1,2,3,5,6,7,4],[0,0,0,0,0,0,0,0],
+                [0,1,2,3,5,6,7,4,8,9,10,11],[0,0,0,0,0,0,0,0,0,0,0,0]),
+  // L
+  new CubieCube([0,2,6,3,4,1,5,7],[0,1,2,0,0,2,1,0],
+                [0,1,10,3,4,5,9,7,8,2,6,11],[0,0,0,0,0,0,0,0,0,0,0,0]),
+  // B
+  new CubieCube([0,1,3,7,4,5,2,6],[0,0,1,2,0,0,2,1],
+                [0,1,2,11,4,5,6,10,8,9,3,7],[0,0,0,1,0,0,0,1,0,0,1,1])
+];
+
+var MOVE_CUBE = [];
+(function () {
+  for (var f = 0; f < 6; f++) {
+    var c = new CubieCube();
+    for (var p = 0; p < 3; p++) {
+      c = multiply(c, BASIC[f]);
+      MOVE_CUBE.push(c.clone());
+    }
+  }
+})();
+
+function applyMoves(cube, moves) {
+  var c = cube.clone();
+  for (var i = 0; i < moves.length; i++) c = multiply(c, MOVE_CUBE[moves[i]]);
+  return c;
+}
+
+// ---------------------------------------------------- facelets <-> cubies
+// facelets: array/string of 54 face ids (0..5) in URFDLB order
+function faceletsToCubie(f) {
+  var cc = new CubieCube(), i, j, ori, col1, col2;
+  for (i = 0; i < 8; i++) {
+    for (ori = 0; ori < 3; ori++) {
+      if (f[CORNER_FACELET[i][ori]] === 0 || f[CORNER_FACELET[i][ori]] === 3) break;
+    }
+    if (ori === 3) return { error: 'Corner at ' + CORNER_NAMES[i] + ' has no white/yellow sticker.' };
+    col1 = f[CORNER_FACELET[i][(ori + 1) % 3]];
+    col2 = f[CORNER_FACELET[i][(ori + 2) % 3]];
+    var found = -1;
+    for (j = 0; j < 8; j++) {
+      if (col1 === CORNER_COLOR[j][1] && col2 === CORNER_COLOR[j][2]) { found = j; break; }
+    }
+    if (found < 0) return { error: 'Corner at ' + CORNER_NAMES[i] + ' is not a real cube corner.' };
+    cc.cp[i] = found; cc.co[i] = ori % 3;
+  }
+  for (i = 0; i < 12; i++) {
+    var ok = false;
+    for (j = 0; j < 12; j++) {
+      if (f[EDGE_FACELET[i][0]] === EDGE_COLOR[j][0] && f[EDGE_FACELET[i][1]] === EDGE_COLOR[j][1]) {
+        cc.ep[i] = j; cc.eo[i] = 0; ok = true; break;
+      }
+      if (f[EDGE_FACELET[i][0]] === EDGE_COLOR[j][1] && f[EDGE_FACELET[i][1]] === EDGE_COLOR[j][0]) {
+        cc.ep[i] = j; cc.eo[i] = 1; ok = true; break;
+      }
+    }
+    if (!ok) return { error: 'Edge at ' + EDGE_NAMES[i] + ' is not a real cube edge.' };
+  }
+  return { cube: cc };
+}
+
+function cubieToFacelets(cc) {
+  var f = new Array(54), i, j;
+  for (i = 0; i < 6; i++) f[i * 9 + 4] = i;
+  for (i = 0; i < 8; i++) {
+    j = cc.cp[i];
+    var o = cc.co[i];
+    for (var k = 0; k < 3; k++) f[CORNER_FACELET[i][(k + o) % 3]] = CORNER_COLOR[j][k];
+  }
+  for (i = 0; i < 12; i++) {
+    j = cc.ep[i];
+    var e = cc.eo[i];
+    for (var m = 0; m < 2; m++) f[EDGE_FACELET[i][(m + e) % 2]] = EDGE_COLOR[j][m];
+  }
+  return f;
+}
+
+// ------------------------------------------------------------- validation
+function verifyCubie(cc) {
+  var i, sum = 0, seen = new Array(12);
+  for (i = 0; i < 12; i++) seen[i] = 0;
+  for (i = 0; i < 12; i++) seen[cc.ep[i]]++;
+  for (i = 0; i < 12; i++) if (seen[i] !== 1) return 'Edge piece "' + EDGE_NAMES[i] + '" appears ' + seen[i] + ' times. Two stickers are probably misread.';
+  for (i = 0; i < 12; i++) sum += cc.eo[i];
+  if (sum % 2 !== 0) return 'One edge is flipped the wrong way (impossible on a real cube). Check the edge stickers.';
+  var seenC = [0,0,0,0,0,0,0,0];
+  for (i = 0; i < 8; i++) seenC[cc.cp[i]]++;
+  for (i = 0; i < 8; i++) if (seenC[i] !== 1) return 'Corner piece "' + CORNER_NAMES[i] + '" appears ' + seenC[i] + ' times. Two stickers are probably misread.';
+  sum = 0;
+  for (i = 0; i < 8; i++) sum += cc.co[i];
+  if (sum % 3 !== 0) return 'One corner is twisted (impossible on a real cube). Check the corner stickers.';
+  if (permParity(cc.ep, 12) !== permParity(cc.cp, 8)) return 'Two pieces are swapped (impossible on a real cube). Check for a misread sticker.';
+  return null;
+}
+function permParity(p, n) {
+  var par = 0;
+  for (var i = 0; i < n - 1; i++) for (var j = i + 1; j < n; j++) if (p[j] < p[i]) par ^= 1;
+  return par;
+}
+
+// ---------------------------------------------------------- permutation rank
+function permToIndex(p, n) {
+  var idx = 0;
+  for (var i = 0; i < n - 1; i++) {
+    idx *= (n - i);
+    var c = 0;
+    for (var j = i + 1; j < n; j++) if (p[j] < p[i]) c++;
+    idx += c;
+  }
+  return idx;
+}
+function indexToPerm(idx, n) {
+  var p = new Array(n), i, j;
+  p[n - 1] = 0;
+  for (i = n - 2; i >= 0; i--) {
+    var c = idx % (n - i);
+    idx = (idx - c) / (n - i);
+    p[i] = c;
+    for (j = i + 1; j < n; j++) if (p[j] >= c) p[j]++;
+  }
+  return p;
+}
+
+// =========================================================== coordinates
+var N_TWIST = 2187, N_FLIP = 2048, N_SLICE = 495;
+var N_PERM8 = 40320, N_PERM4 = 24;
+
+// slice coordinate: which 4 of the 12 edge slots hold the 4 middle-layer edges
+var sliceIdxOf = new Int16Array(4096);
+var sliceMaskOf = new Int16Array(N_SLICE);
+(function () {
+  var n = 0;
+  for (var m = 0; m < 4096; m++) {
+    var bits = 0;
+    for (var b = 0; b < 12; b++) if (m & (1 << b)) bits++;
+    if (bits === 4) { sliceIdxOf[m] = n; sliceMaskOf[n] = m; n++; }
+    else sliceIdxOf[m] = -1;
+  }
+})();
+var SLICE_SOLVED = sliceIdxOf[(1 << 8) | (1 << 9) | (1 << 10) | (1 << 11)];
+
+function getTwist(cc) { var t = 0; for (var i = 0; i < 7; i++) t = t * 3 + cc.co[i]; return t; }
+function getFlip(cc)  { var t = 0; for (var i = 0; i < 11; i++) t = t * 2 + cc.eo[i]; return t; }
+function getSlice(cc) {
+  var m = 0;
+  for (var i = 0; i < 12; i++) if (cc.ep[i] >= 8) m |= (1 << i);
+  return sliceIdxOf[m];
+}
+function getCornPerm(cc) { return permToIndex(cc.cp, 8); }
+function getEdge8Perm(cc) { return permToIndex(cc.ep.slice(0, 8), 8); }
+function getSlicePerm(cc) {
+  var p = [cc.ep[8] - 8, cc.ep[9] - 8, cc.ep[10] - 8, cc.ep[11] - 8];
+  return permToIndex(p, 4);
+}
+
+// phase-2 move subset (indices into the 18 moves)
+var P2_MOVES = [0,1,2, 4, 7, 9,10,11, 13, 16]; // U,U2,U',R2,F2,D,D2,D',L2,B2
+var P2_INDEX = new Int8Array(18).fill(-1);
+P2_MOVES.forEach(function (m, i) { P2_INDEX[m] = i; });
+var N_P2 = P2_MOVES.length;
+
+// =========================================================== table building
+var T = null; // holds every lookup table once built
+
+function buildTables(onProgress) {
+  if (T) return T;
+  var step = 0, TOTAL = 7;
+  function tick(label) { if (onProgress) onProgress(++step / TOTAL, label); }
+
+  var twistMove = new Int16Array(N_TWIST * 18);
+  var flipMove  = new Int16Array(N_FLIP * 18);
+  var sliceMove = new Int16Array(N_SLICE * 18);
+  var i, m, mc, j;
+
+  // twist
+  var c = new CubieCube();
+  for (i = 0; i < N_TWIST; i++) {
+    var t = i, co = new Array(8), s = 0;
+    for (j = 6; j >= 0; j--) { co[j] = t % 3; t = (t - co[j]) / 3; s += co[j]; }
+    co[7] = (3 - s % 3) % 3;
+    for (m = 0; m < 18; m++) {
+      mc = MOVE_CUBE[m];
+      var nc = 0;
+      for (j = 0; j < 7; j++) nc = nc * 3 + (co[mc.cp[j]] + mc.co[j]) % 3;
+      twistMove[i * 18 + m] = nc;
+    }
+  }
+  tick('corner orientation table');
+
+  // flip
+  for (i = 0; i < N_FLIP; i++) {
+    var fv = i, eo = new Array(12), se = 0;
+    for (j = 10; j >= 0; j--) { eo[j] = fv % 2; fv = (fv - eo[j]) / 2; se += eo[j]; }
+    eo[11] = se % 2;
+    for (m = 0; m < 18; m++) {
+      mc = MOVE_CUBE[m];
+      var nf = 0;
+      for (j = 0; j < 11; j++) nf = nf * 2 + (eo[mc.ep[j]] + mc.eo[j]) % 2;
+      flipMove[i * 18 + m] = nf;
+    }
+  }
+  tick('edge orientation table');
+
+  // slice
+  for (i = 0; i < N_SLICE; i++) {
+    var mask = sliceMaskOf[i];
+    for (m = 0; m < 18; m++) {
+      mc = MOVE_CUBE[m];
+      var nm = 0;
+      for (j = 0; j < 12; j++) if (mask & (1 << mc.ep[j])) nm |= (1 << j);
+      sliceMove[i * 18 + m] = sliceIdxOf[nm];
+    }
+  }
+  tick('middle-layer table');
+
+  // phase-2 permutation move tables
+  var cornMove = new Uint16Array(N_PERM8 * N_P2);
+  var edge8Move = new Uint16Array(N_PERM8 * N_P2);
+  var slicePermMove = new Uint16Array(N_PERM4 * N_P2);
+  var q = new Array(8);
+  for (i = 0; i < N_PERM8; i++) {
+    var p = indexToPerm(i, 8);
+    for (var k = 0; k < N_P2; k++) {
+      mc = MOVE_CUBE[P2_MOVES[k]];
+      for (j = 0; j < 8; j++) q[j] = p[mc.cp[j]];
+      cornMove[i * N_P2 + k] = permToIndex(q, 8);
+      for (j = 0; j < 8; j++) q[j] = p[mc.ep[j]];
+      edge8Move[i * N_P2 + k] = permToIndex(q, 8);
+    }
+  }
+  tick('corner & edge permutation tables');
+
+  var q4 = new Array(4);
+  for (i = 0; i < N_PERM4; i++) {
+    var p4 = indexToPerm(i, 4);
+    for (var k2 = 0; k2 < N_P2; k2++) {
+      mc = MOVE_CUBE[P2_MOVES[k2]];
+      for (j = 0; j < 4; j++) q4[j] = p4[mc.ep[j + 8] - 8];
+      slicePermMove[i * N_P2 + k2] = permToIndex(q4, 4);
+    }
+  }
+
+  // ---- pruning tables (breadth-first from the solved state) ----
+  function bfs(size, aCount, bCount, moveA, moveB, nMoves, startA, startB) {
+    var dist = new Uint8Array(size).fill(255);
+    var start = startA * bCount + startB;
+    dist[start] = 0;
+    var queue = new Int32Array(size);
+    var head = 0, tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      var cur = queue[head++];
+      var a = (cur / bCount) | 0, b = cur % bCount;
+      var d = dist[cur] + 1;
+      for (var mm = 0; mm < nMoves; mm++) {
+        var na = moveA[a * nMoves + mm], nb = moveB[b * nMoves + mm];
+        var nx = na * bCount + nb;
+        if (dist[nx] === 255) { dist[nx] = d; queue[tail++] = nx; }
+      }
+    }
+    return dist;
+  }
+
+  var pruneFlipSlice = bfs(N_FLIP * N_SLICE, N_FLIP, N_SLICE, flipMove, sliceMove, 18, 0, SLICE_SOLVED);
+  tick('phase 1 distance table (edges)');
+  var pruneTwistSlice = bfs(N_TWIST * N_SLICE, N_TWIST, N_SLICE, twistMove, sliceMove, 18, 0, SLICE_SOLVED);
+  tick('phase 1 distance table (corners)');
+  var pruneCornSlice = bfs(N_PERM8 * N_PERM4, N_PERM8, N_PERM4, cornMove, slicePermMove, N_P2, 0, 0);
+  var pruneEdgeSlice = bfs(N_PERM8 * N_PERM4, N_PERM8, N_PERM4, edge8Move, slicePermMove, N_P2, 0, 0);
+  tick('phase 2 distance tables');
+
+  T = {
+    twistMove: twistMove, flipMove: flipMove, sliceMove: sliceMove,
+    cornMove: cornMove, edge8Move: edge8Move, slicePermMove: slicePermMove,
+    pruneFlipSlice: pruneFlipSlice, pruneTwistSlice: pruneTwistSlice,
+    pruneCornSlice: pruneCornSlice, pruneEdgeSlice: pruneEdgeSlice
+  };
+  return T;
+}
+
+// =============================================================== searching
+function invertCube(cc) {
+  var r = new CubieCube(), i;
+  for (i = 0; i < 8; i++) r.cp[cc.cp[i]] = i;
+  for (i = 0; i < 8; i++) r.co[i] = (3 - cc.co[r.cp[i]]) % 3;
+  for (i = 0; i < 12; i++) r.ep[cc.ep[i]] = i;
+  for (i = 0; i < 12; i++) r.eo[i] = cc.eo[r.ep[i]];
+  return r;
+}
+function invertMove(m) { return ((m / 3) | 0) * 3 + (2 - (m % 3)); }
+function invertSequence(seq) {
+  var out = [];
+  for (var i = seq.length - 1; i >= 0; i--) out.push(invertMove(seq[i]));
+  return out;
+}
+var now = (typeof performance !== 'undefined' && performance.now)
+  ? function () { return performance.now(); }
+  : function () { return Date.now(); };
+
+/* Search one cube. Returns the best move list found, or null.
+   `bound` = only accept solutions strictly shorter than this. */
+function searchOne(cc, bound, deadline, onImprove) {
+  var t = T;
+  var twistMove = t.twistMove, flipMove = t.flipMove, sliceMove = t.sliceMove;
+  var cornMove = t.cornMove, edge8Move = t.edge8Move, slicePermMove = t.slicePermMove;
+  var pFS = t.pruneFlipSlice, pTS = t.pruneTwistSlice;
+  var pCS = t.pruneCornSlice, pES = t.pruneEdgeSlice;
+
+  var MAXD = 32;
+  var twistA = new Int32Array(MAXD), flipA = new Int32Array(MAXD), sliceA = new Int32Array(MAXD);
+  var mv1 = new Int32Array(MAXD);
+  var cornB = new Int32Array(MAXD), edgeB = new Int32Array(MAXD), sliceB = new Int32Array(MAXD);
+  var mv2 = new Int32Array(MAXD);
+
+  var best = null, bestLen = bound, aborted = false;
+  var nodes = 0;
+
+  twistA[0] = getTwist(cc); flipA[0] = getFlip(cc); sliceA[0] = getSlice(cc);
+
+  function timeUp() {
+    if ((++nodes & 2047) !== 0) return false;
+    if (now() > deadline) { aborted = true; return true; }
+    return false;
+  }
+
+  function phase2(n1, lastFace) {
+    // rebuild the cube after the phase-1 moves
+    var c = cc;
+    for (var i = 0; i < n1; i++) c = multiply(c, MOVE_CUBE[mv1[i]]);
+    var c0 = getCornPerm(c), e0 = getEdge8Perm(c), s0 = getSlicePerm(c);
+    var lb = Math.max(pCS[c0 * N_PERM4 + s0], pES[e0 * N_PERM4 + s0]);
+    if (lb === 255) return;
+    var maxLen = bestLen - n1 - 1;         // must beat the current best
+    if (lb > maxLen) return;
+    cornB[0] = c0; edgeB[0] = e0; sliceB[0] = s0;
+
+    for (var d2 = lb; d2 <= maxLen; d2++) {
+      if (dfs2(0, d2, lastFace)) {
+        var sol = [];
+        for (var a = 0; a < n1; a++) sol.push(mv1[a]);
+        for (var b = 0; b < d2; b++) sol.push(mv2[b]);
+        best = sol; bestLen = sol.length;
+        if (onImprove) onImprove(sol.slice());
+        return;
+      }
+      if (aborted) return;
+    }
+  }
+
+  function dfs2(n, togo, lastFace) {
+    if (togo === 0) {
+      return cornB[n] === 0 && edgeB[n] === 0 && sliceB[n] === 0;
+    }
+    if (timeUp()) return false;
+    for (var k = 0; k < N_P2; k++) {
+      var m = P2_MOVES[k], face = (m / 3) | 0;
+      if (lastFace >= 0 && (face === lastFace || face + 3 === lastFace)) continue;
+      var nc = cornMove[cornB[n] * N_P2 + k];
+      var ne = edge8Move[edgeB[n] * N_P2 + k];
+      var ns = slicePermMove[sliceB[n] * N_P2 + k];
+      var d = pCS[nc * N_PERM4 + ns];
+      var d2 = pES[ne * N_PERM4 + ns];
+      if (d2 > d) d = d2;
+      if (d >= togo) continue;
+      cornB[n + 1] = nc; edgeB[n + 1] = ne; sliceB[n + 1] = ns; mv2[n] = m;
+      if (dfs2(n + 1, togo - 1, face)) return true;
+      if (aborted) return false;
+    }
+    return false;
+  }
+
+  function dfs1(n, togo, lastFace) {
+    if (togo === 0) {
+      if (twistA[n] === 0 && flipA[n] === 0 && sliceA[n] === SLICE_SOLVED) phase2(n, lastFace);
+      return;
+    }
+    if (timeUp()) return;
+    for (var m = 0; m < 18; m++) {
+      var face = (m / 3) | 0;
+      if (lastFace >= 0 && (face === lastFace || face + 3 === lastFace)) continue;
+      var nt = twistMove[twistA[n] * 18 + m];
+      var nf = flipMove[flipA[n] * 18 + m];
+      var ns = sliceMove[sliceA[n] * 18 + m];
+      var d = pTS[nt * N_SLICE + ns];
+      var d2 = pFS[nf * N_SLICE + ns];
+      if (d2 > d) d = d2;
+      if (d >= togo) continue;
+      twistA[n + 1] = nt; flipA[n + 1] = nf; sliceA[n + 1] = ns; mv1[n] = m;
+      dfs1(n + 1, togo - 1, face);
+      if (aborted || bestLen === 0) return;
+    }
+  }
+
+  var lb1 = Math.max(pTS[twistA[0] * N_SLICE + sliceA[0]], pFS[flipA[0] * N_SLICE + sliceA[0]]);
+  for (var d1 = lb1; d1 <= 20; d1++) {
+    if (best && bestLen <= d1) break;   // no deeper phase 1 can be shorter overall
+    dfs1(0, d1, -1);
+    if (aborted) break;
+  }
+  return { moves: best, proven: !aborted && best !== null };
+}
+
+/* Public: solve a CubieCube. Tries the cube and its inverse and keeps the shorter. */
+function solveCubie(cc, opts) {
+  opts = opts || {};
+  var budget = opts.timeBudget || 8000;
+  var onImprove = opts.onImprove;
+  var t0 = now();
+
+  if (isSolved(cc)) return { moves: [], proven: true, optimalProof: 'already solved' };
+
+  var a = searchOne(cc, 31, t0 + budget * (opts.splitRatio || 0.5), onImprove ? function (s) { onImprove(s); } : null);
+  var bestMoves = a.moves, proven = a.proven;
+
+  // Good enough: the two-phase optimum for this orientation is at or under
+  // God's number, so stop rather than burn the whole budget.
+  if (proven && bestMoves && bestMoves.length <= (opts.goodEnough || 20)) {
+    return { moves: bestMoves, proven: true };
+  }
+  var remaining = (t0 + budget) - now();
+  if (remaining > 200 && bestMoves && bestMoves.length > 1) {
+    var b = searchOne(invertCube(cc), bestMoves.length, now() + remaining, null);
+    if (b.moves) {
+      var cand = invertSequence(b.moves);
+      if (cand.length < bestMoves.length) {
+        bestMoves = cand; proven = b.proven;
+        if (onImprove) onImprove(cand.slice());
+      }
+    }
+  }
+  if (!bestMoves) {
+    // last resort: no time limit
+    var c = searchOne(cc, 31, now() + 120000, null);
+    bestMoves = c.moves; proven = c.proven;
+  }
+  return { moves: bestMoves, proven: proven };
+}
+
+function isSolved(cc) {
+  for (var i = 0; i < 8; i++) if (cc.cp[i] !== i || cc.co[i] !== 0) return false;
+  for (var j = 0; j < 12; j++) if (cc.ep[j] !== j || cc.eo[j] !== 0) return false;
+  return true;
+}
+
+// ------------------------------------------------------------------- API
+function solveFacelets(facelets, opts) {
+  var r = faceletsToCubie(facelets);
+  if (r.error) return { error: r.error };
+  var err = verifyCubie(r.cube);
+  if (err) return { error: err };
+  buildTables();
+  var res = solveCubie(r.cube, opts);
+  if (!res.moves) return { error: 'No solution found within the time limit.' };
+  // ---- independent verification: replay the solution on the scanned cube ----
+  var check = applyMoves(r.cube, res.moves);
+  if (!isSolved(check)) return { error: 'Internal error: the solution did not verify.' };
+  return {
+    moves: res.moves,
+    notation: res.moves.map(function (m) { return MOVE_NAMES[m]; }),
+    length: res.moves.length,
+    verified: true,
+    proven: res.proven
+  };
+}
+
+function randomCube(rng) {
+  rng = rng || Math.random;
+  var c = new CubieCube();
+  var n = 30 + Math.floor(rng() * 10), last = -1, seq = [];
+  for (var i = 0; i < n; i++) {
+    var m;
+    do { m = Math.floor(rng() * 18); } while (((m / 3) | 0) === last);
+    last = (m / 3) | 0;
+    seq.push(m);
+    c = multiply(c, MOVE_CUBE[m]);
+  }
+  return { cube: c, scramble: seq };
+}
+
+/* ------------------------------------------------------------------------
+ * Fill in a face that was never photographed. With five faces the cube state
+ * is still determined: every hidden corner shows two of its three colours,
+ * and the four hidden edges are pinned down by elimination.
+ * f = 54 entries, -1 where unknown. Returns {cube, facelets} or {error}.
+ * ----------------------------------------------------------------------*/
+function completeFromPartial(f) {
+  var i, j, o, s, cornerCand = [], edgeCand = [];
+  for (i = 0; i < 8; i++) {
+    var known = [], cands = [];
+    for (s = 0; s < 3; s++) if (f[CORNER_FACELET[i][s]] >= 0) known.push(s);
+    if (known.length < 2) return { error: 'Not enough of the cube is visible. Please capture at least five faces.' };
+    for (j = 0; j < 8; j++) for (o = 0; o < 3; o++) {
+      var ok = true;
+      for (var q = 0; q < known.length; q++) {
+        var sl = known[q];
+        if (CORNER_COLOR[j][(sl - o + 3) % 3] !== f[CORNER_FACELET[i][sl]]) { ok = false; break; }
+      }
+      if (ok) cands.push([j, o]);
+    }
+    if (!cands.length) return { error: 'The corner at ' + CORNER_NAMES[i] + ' is not a real cube corner.' };
+    cornerCand.push(cands);
+  }
+  for (i = 0; i < 12; i++) {
+    var knownE = [], candsE = [];
+    for (s = 0; s < 2; s++) if (f[EDGE_FACELET[i][s]] >= 0) knownE.push(s);
+    if (!knownE.length) return { error: 'Not enough of the cube is visible. Please capture at least five faces.' };
+    for (j = 0; j < 12; j++) for (o = 0; o < 2; o++) {
+      var ok2 = true;
+      for (var q2 = 0; q2 < knownE.length; q2++) {
+        var sl2 = knownE[q2];
+        if (EDGE_COLOR[j][(sl2 - o + 2) % 2] !== f[EDGE_FACELET[i][sl2]]) { ok2 = false; break; }
+      }
+      if (ok2) candsE.push([j, o]);
+    }
+    if (!candsE.length) return { error: 'The edge at ' + EDGE_NAMES[i] + ' is not a real cube edge.' };
+    edgeCand.push(candsE);
+  }
+  var solutions = [];
+  var cc = new CubieCube();
+  var usedC = [0,0,0,0,0,0,0,0], usedE = new Array(12).fill(0);
+  function placeEdges(k) {
+    if (solutions.length > 1) return;
+    if (k === 12) {
+      if (!verifyCubie(cc)) solutions.push(cc.clone());
+      return;
+    }
+    for (var t = 0; t < edgeCand[k].length; t++) {
+      var pj = edgeCand[k][t][0];
+      if (usedE[pj]) continue;
+      usedE[pj] = 1; cc.ep[k] = pj; cc.eo[k] = edgeCand[k][t][1];
+      placeEdges(k + 1);
+      usedE[pj] = 0;
+      if (solutions.length > 1) return;
+    }
+  }
+  function placeCorners(k) {
+    if (solutions.length > 1) return;
+    if (k === 8) { placeEdges(0); return; }
+    for (var t = 0; t < cornerCand[k].length; t++) {
+      var pj = cornerCand[k][t][0];
+      if (usedC[pj]) continue;
+      usedC[pj] = 1; cc.cp[k] = pj; cc.co[k] = cornerCand[k][t][1];
+      placeCorners(k + 1);
+      usedC[pj] = 0;
+      if (solutions.length > 1) return;
+    }
+  }
+  placeCorners(0);
+  if (!solutions.length) return { error: 'These stickers do not describe a solvable cube. Check the highlighted squares.' };
+  if (solutions.length > 1) return { error: 'The missing face is ambiguous. Please capture all six faces.' };
+  return { cube: solutions[0], facelets: cubieToFacelets(solutions[0]) };
+}
+
+global.CubeSolver = {
+  MOVE_NAMES: MOVE_NAMES, FACE_NAMES: FACE_NAMES,
+  CubieCube: CubieCube, multiply: multiply, MOVE_CUBE: MOVE_CUBE,
+  applyMoves: applyMoves, invertCube: invertCube, invertSequence: invertSequence,
+  faceletsToCubie: faceletsToCubie, cubieToFacelets: cubieToFacelets,
+  verifyCubie: verifyCubie, isSolved: isSolved,
+  buildTables: buildTables, solveCubie: solveCubie, solveFacelets: solveFacelets,
+  randomCube: randomCube, completeFromPartial: completeFromPartial,
+  CORNER_FACELET: CORNER_FACELET, EDGE_FACELET: EDGE_FACELET
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = global.CubeSolver;
+
+})(typeof self !== 'undefined' ? self : (typeof globalThis !== 'undefined' ? globalThis : this));
+</script>
+<script>/* ============================================================================
+ * Sticker colour detection: sample a 3x3 grid from a frame, classify the 54
+ * stickers into 6 colours under the hard constraint of exactly 9 per colour.
+ * ==========================================================================*/
+(function (global) {
+'use strict';
+
+var FACE_KEYS = ['U','R','F','D','L','B'];
+
+
+/* ==========================================================================
+ * Cube-face detection.
+ * Real photos have the cube off-centre and filling maybe half the frame, so a
+ * fixed centre crop reads the tablecloth. This searches for the square that
+ * best looks like a cube face: nine flat patches, dark plastic gaps on the
+ * thirds (and NOT through the middle of a patch), and a hard outer edge.
+ * Operates on RGBA pixels so the same code runs in the browser and in tests.
+ * ======================================================================== */
+function detectInBuffer(data, W, H) {
+  // Integral images make every candidate square O(1) instead of O(pixels),
+  // which is the difference between 5 seconds and 50 milliseconds per photo.
+  var N = (W + 1) * (H + 1);
+  var iR = new Float64Array(N), iG = new Float64Array(N), iB = new Float64Array(N);
+  var iR2 = new Float64Array(N), iG2 = new Float64Array(N), iB2 = new Float64Array(N), iL = new Float64Array(N);
+  for (var y = 0; y < H; y++) {
+    var rr = 0, gg = 0, bb = 0, r2 = 0, g2 = 0, b2 = 0, ll = 0;
+    for (var x = 0; x < W; x++) {
+      var o = (y * W + x) * 4;
+      var R = data[o], G = data[o + 1], B = data[o + 2];
+      rr += R; gg += G; bb += B; r2 += R * R; g2 += G * G; b2 += B * B;
+      ll += 0.299 * R + 0.587 * G + 0.114 * B;
+      var p = (y + 1) * (W + 1) + (x + 1), q = y * (W + 1) + (x + 1);
+      iR[p] = iR[q] + rr; iG[p] = iG[q] + gg; iB[p] = iB[q] + bb;
+      iR2[p] = iR2[q] + r2; iG2[p] = iG2[q] + g2; iB2[p] = iB2[q] + b2;
+      iL[p] = iL[q] + ll;
+    }
+  }
+  function cl(v, m) { return v < 0 ? 0 : (v > m ? m : v); }
+  function box(I, x0, y0, x1, y1) {
+    x0 = cl(Math.round(x0), W); x1 = cl(Math.round(x1), W);
+    y0 = cl(Math.round(y0), H); y1 = cl(Math.round(y1), H);
+    if (x1 <= x0) x1 = Math.min(W, x0 + 1);
+    if (y1 <= y0) y1 = Math.min(H, y0 + 1);
+    var a = y1 * (W + 1) + x1, b = y0 * (W + 1) + x1, c = y1 * (W + 1) + x0, d = y0 * (W + 1) + x0;
+    return { v: I[a] - I[b] - I[c] + I[d], n: (x1 - x0) * (y1 - y0) };
+  }
+  var minSide = Math.min(W, H);
+
+  function score(x, y, s) {
+    var c = s / 3, uni = 0, cellL = 0, i, j;
+    var cm = new Float64Array(27);
+    for (j = 0; j < 3; j++) for (i = 0; i < 3; i++) {
+      var cx = x + c * (i + 0.5), cy = y + c * (j + 0.5), r = c * 0.26;
+      var bx0 = cx - r, by0 = cy - r, bx1 = cx + r, by1 = cy + r;
+      var sR = box(iR, bx0, by0, bx1, by1), n = sR.n;
+      var mR = sR.v / n, mG = box(iG, bx0, by0, bx1, by1).v / n, mB = box(iB, bx0, by0, bx1, by1).v / n;
+      var vR = box(iR2, bx0, by0, bx1, by1).v / n - mR * mR;
+      var vG = box(iG2, bx0, by0, bx1, by1).v / n - mG * mG;
+      var vB = box(iB2, bx0, by0, bx1, by1).v / n - mB * mB;
+      uni += (Math.sqrt(vR > 0 ? vR : 0) + Math.sqrt(vG > 0 ? vG : 0) + Math.sqrt(vB > 0 ? vB : 0)) / 3;
+      var k3 = (j * 3 + i) * 3; cm[k3] = mR; cm[k3 + 1] = mG; cm[k3 + 2] = mB;
+      cellL += 0.299 * mR + 0.587 * mG + 0.114 * mB;
+    }
+    uni /= 9; cellL /= 9;
+
+    var t = Math.max(1, s * 0.022), y0 = y + s * 0.1, y1 = y + s * 0.9;
+    function strip(cxx, vertical) {
+      var bb = vertical ? box(iL, cxx - t, y0, cxx + t, y1) : box(iL, y0, cxx - t, y1, cxx + t);
+      return bb.v / bb.n;
+    }
+    var gapL = (strip(x + c, true) + strip(x + 2 * c, true) + strip(y + c, false) + strip(y + 2 * c, false)) / 4;
+    var midL = (strip(x + s/6, true) + strip(x + s/2, true) + strip(x + 5*s/6, true) +
+                strip(y + s/6, false) + strip(y + s/2, false) + strip(y + 5*s/6, false)) / 6;
+
+    var off = Math.max(2, s * 0.05), x0 = x + s * 0.12, x1 = x + s * 0.88;
+    function meanC(bx0, by0, bx1, by1) {
+      var a = box(iR, bx0, by0, bx1, by1), n = a.n;
+      return [a.v / n, box(iG, bx0, by0, bx1, by1).v / n, box(iB, bx0, by0, bx1, by1).v / n];
+    }
+    function diff(a, b) { return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]); }
+    var bc = (
+      diff(meanC(x0, y + 1, x1, y + off), meanC(x0, y - off, x1, y - 1)) +
+      diff(meanC(x0, y + s - off, x1, y + s - 1), meanC(x0, y + s + 1, x1, y + s + off)) +
+      diff(meanC(x + 1, y0, x + off, y1), meanC(x - off, y0, x - 1, y1)) +
+      diff(meanC(x + s - off, y0, x + s - 1, y1), meanC(x + s + 1, y0, x + s + off, y1))
+    ) / 4;
+
+    var spread = 0;
+    for (i = 0; i < 9; i++) for (j = i + 1; j < 9; j++) {
+      var a3 = i * 3, b3 = j * 3;
+      var dd = Math.abs(cm[a3]-cm[b3]) + Math.abs(cm[a3+1]-cm[b3+1]) + Math.abs(cm[a3+2]-cm[b3+2]);
+      if (dd > spread) spread = dd;
+    }
+
+    return (cellL - gapL) * 1.0 + bc * 0.55 - uni * 1.3
+         - Math.max(0, cellL - midL) * 1.5 + Math.min(spread, 150) * 0.06
+         + (s / minSide) * 60;
+  }
+
+  var best = null, sc;
+  for (var ss = Math.round(minSide * 0.28); ss <= Math.round(minSide * 0.99); ss += 4)
+    for (var yy = -2; yy + ss < H + 2; yy += 4)
+      for (var xx = -2; xx + ss < W + 2; xx += 4) {
+        sc = score(xx, yy, ss);
+        if (!best || sc > best.score) best = { x: xx, y: yy, s: ss, score: sc };
+      }
+  for (var it = 0; it < 4; it++) {
+    var step = Math.max(1, Math.round(best.s * 0.04)), improved = false;
+    for (var ds = -step * 2; ds <= step * 2; ds++)
+      for (var dy = -step; dy <= step; dy++)
+        for (var dx = -step; dx <= step; dx++) {
+          var nx = best.x + dx, ny = best.y + dy, ns = best.s + ds;
+          if (ns < minSide * 0.2) continue;
+          sc = score(nx, ny, ns);
+          if (sc > best.score) { best = { x: nx, y: ny, s: ns, score: sc }; improved = true; }
+        }
+    if (!improved) break;
+  }
+  return best;
+}
+
+/* run the detector against a video/image element, in source-pixel coordinates */
+function detectFace(source, workWidth) {
+  workWidth = workWidth || 140;
+  var w = source.videoWidth || source.naturalWidth || source.width;
+  var h = source.videoHeight || source.naturalHeight || source.height;
+  var W = workWidth, H = Math.max(1, Math.round(h * W / w));
+  var cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  var ctx = cvs.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, W, H);
+  var d = ctx.getImageData(0, 0, W, H).data;
+  var b = detectInBuffer(d, W, H);
+  var k = w / W;
+  return { x: b.x * k, y: b.y * k, size: b.s * k, score: b.score };
+}
+
+/* ---- sample nine sticker colours out of a square region of a canvas ---- */
+function sampleGrid(source, roi) {
+  var cvs = document.createElement('canvas');
+  var w = source.videoWidth || source.naturalWidth || source.width;
+  var h = source.videoHeight || source.naturalHeight || source.height;
+  cvs.width = w; cvs.height = h;
+  var ctx = cvs.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, w, h);
+
+  if (!roi) {
+    var det = null;
+    try { det = detectFace(source); } catch (e) { det = null; }
+    if (det) {
+      roi = { x: det.x, y: det.y, size: det.size, auto: true, score: det.score };
+    } else {
+      var sq = Math.min(w, h) * 0.72;
+      roi = { x: (w - sq) / 2, y: (h - sq) / 2, size: sq, auto: false, score: det ? det.score : 0 };
+    }
+  }
+  var cell = roi.size / 3;
+  var rad = Math.max(2, Math.round(cell * 0.22));
+  var out = [];
+  for (var r = 0; r < 3; r++) {
+    for (var c = 0; c < 3; c++) {
+      var cx = Math.round(roi.x + cell * (c + 0.5));
+      var cy = Math.round(roi.y + cell * (r + 0.5));
+      out.push(medianPatch(ctx, cx - rad, cy - rad, rad * 2, rad * 2));
+    }
+  }
+  return { rgb: out, width: w, height: h, roi: roi };
+}
+
+/* median is used instead of mean so glare spots and sticker gaps don't drag
+   the reading off */
+function medianPatch(ctx, x, y, w, h) {
+  x = Math.max(0, x); y = Math.max(0, y);
+  var d = ctx.getImageData(x, y, Math.max(1, w), Math.max(1, h)).data;
+  var R = [], G = [], B = [];
+  for (var i = 0; i < d.length; i += 4) { R.push(d[i]); G.push(d[i + 1]); B.push(d[i + 2]); }
+  return [med(R), med(G), med(B)];
+}
+function med(a) { a.sort(function (x, y) { return x - y; }); return a[a.length >> 1]; }
+
+/* ------------------------------------------------------------ colour space */
+function rgbToHsv(c) {
+  var r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+  var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  var h = 0;
+  if (d > 1e-6) {
+    if (mx === r) h = 60 * (((g - b) / d) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  if (h < 0) h += 360;
+  return [h, mx === 0 ? 0 : d / mx, mx];
+}
+/* chroma vector + lightness: hue collapses automatically as saturation drops,
+   which is exactly what we want for white stickers */
+function feature(c) {
+  var hsv = rgbToHsv(c), rad = hsv[0] * Math.PI / 180;
+  return [Math.cos(rad) * hsv[1], Math.sin(rad) * hsv[1], hsv[2] * 0.75];
+}
+function dist2(a, b) {
+  var x = a[0] - b[0], y = a[1] - b[1], z = a[2] - b[2];
+  return x * x + y * y + z * z;
+}
+
+/* -------------------------------------------------------------- classifier
+ * faces: { U:[9 rgb], R:[...], ... }  ->  { facelets:[54], confidence:[54] }
+ * Exactly nine stickers get assigned to each colour, solved as a minimum-cost
+ * assignment so one bad sticker can't cascade.
+ */
+function classify(faces, missing) {
+  if (missing === undefined || missing === null) missing = -1;
+  var i, j, f, known = [];
+  for (f = 0; f < 6; f++) if (f !== missing) known.push(f);
+
+  // per-face brightness equalisation: the six photos are rarely lit the same
+  var faceV = {}, globalV = 0;
+  known.forEach(function (ff) {
+    var s = 0, a = faces[FACE_KEYS[ff]];
+    for (var k = 0; k < 9; k++) s += Math.max(a[k][0], a[k][1], a[k][2]);
+    faceV[ff] = s / 9; globalV += s / 9;
+  });
+  globalV /= known.length;
+
+  var idxOf = [], feats = [], raw = [];
+  known.forEach(function (ff) {
+    var k = faceV[ff] > 1 ? Math.max(0.6, Math.min(1.6, globalV / faceV[ff])) : 1;
+    var a = faces[FACE_KEYS[ff]];
+    for (var q = 0; q < 9; q++) {
+      var c = [Math.min(255, a[q][0] * k), Math.min(255, a[q][1] * k), Math.min(255, a[q][2] * k)];
+      idxOf.push(ff * 9 + q); raw.push(a[q]); feats.push(feature(c));
+    }
+  });
+
+  // colour references: each visible centre defines its own colour
+  var refs = new Array(6);
+  known.forEach(function (ff) { refs[ff] = feats[known.indexOf(ff) * 9 + 4]; });
+  if (missing >= 0) {
+    // No centre to learn the unseen colour from, so find it by clustering:
+    // seed on the point that fits the five known references worst, then run a
+    // few Lloyd iterations with the five known centres pinned.
+    var best = -1, bestD = -1;
+    for (i = 0; i < feats.length; i++) {
+      var d = Infinity;
+      known.forEach(function (ff) { d = Math.min(d, dist2(feats[i], refs[ff])); });
+      if (d > bestD) { bestD = d; best = i; }
+    }
+    refs[missing] = feats[best].slice();
+    for (var it = 0; it < 6; it++) {
+      var acc = [0, 0, 0], cnt = 0;
+      for (i = 0; i < feats.length; i++) {
+        if ((idxOf[i] % 9) === 4) continue;              // centres are pinned
+        var win = missing, wd = dist2(feats[i], refs[missing]);
+        for (var kk = 0; kk < known.length; kk++) {
+          var dd = dist2(feats[i], refs[known[kk]]);
+          if (dd < wd) { wd = dd; win = known[kk]; }
+        }
+        if (win === missing) { acc[0] += feats[i][0]; acc[1] += feats[i][1]; acc[2] += feats[i][2]; cnt++; }
+      }
+      if (!cnt) break;
+      var nr = [acc[0] / cnt, acc[1] / cnt, acc[2] / cnt];
+      if (dist2(nr, refs[missing]) < 1e-8) { refs[missing] = nr; break; }
+      refs[missing] = nr;
+    }
+  }
+
+  var N = feats.length, BIG = 1e6;
+  var cost = [];
+  for (i = 0; i < N; i++) {
+    var row = new Array(54);
+    var gi = idxOf[i], isCentre = (gi % 9) === 4, myFace = (gi / 9) | 0;
+    for (j = 0; j < 54; j++) {
+      var col = (j / 9) | 0;
+      if (isCentre) row[j] = (col === myFace) ? 0 : BIG;
+      else row[j] = dist2(feats[i], refs[col]) * 1000;
+    }
+    cost.push(row);
+  }
+  var assign = hungarian(cost);
+
+  var facelets = new Array(54).fill(-1), confidence = new Array(54).fill(0), rgb = new Array(54).fill(null);
+  for (i = 0; i < N; i++) {
+    var g = idxOf[i];
+    facelets[g] = (assign[i] / 9) | 0;
+    rgb[g] = raw[i];
+    var d0 = dist2(feats[i], refs[facelets[g]]), d1 = Infinity;
+    for (j = 0; j < 6; j++) if (j !== facelets[g] && refs[j]) d1 = Math.min(d1, dist2(feats[i], refs[j]));
+    confidence[g] = (g % 9) === 4 ? 1 : Math.max(0, Math.min(1, (d1 - d0) / (d1 + d0 + 1e-6)));
+  }
+  return { facelets: facelets, confidence: confidence, rgb: rgb };
+}
+
+/* --------------------------------------------- Hungarian algorithm O(n^3) */
+function hungarian(a) {
+  var n = a.length, m = a[0].length;
+  var INF = Infinity;
+  var u = new Float64Array(n + 1), v = new Float64Array(m + 1);
+  var p = new Int32Array(m + 1).fill(0), way = new Int32Array(m + 1).fill(0);
+  for (var i = 1; i <= n; i++) {
+    p[0] = i;
+    var j0 = 0;
+    var minv = new Float64Array(m + 1).fill(INF);
+    var used = new Uint8Array(m + 1);
+    do {
+      used[j0] = 1;
+      var i0 = p[j0], delta = INF, j1 = 0;
+      for (var j = 1; j <= m; j++) {
+        if (!used[j]) {
+          var cur = a[i0 - 1][j - 1] - u[i0] - v[j];
+          if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+          if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+        }
+      }
+      for (var j2 = 0; j2 <= m; j2++) {
+        if (used[j2]) { u[p[j2]] += delta; v[j2] -= delta; }
+        else minv[j2] -= delta;
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { var j3 = way[j0]; p[j0] = p[j3]; j0 = j3; } while (j0);
+  }
+  var res = new Int32Array(n);
+  for (var j4 = 1; j4 <= m; j4++) if (p[j4] > 0) res[p[j4] - 1] = j4 - 1;
+  return res;
+}
+
+global.CubeVision = {
+  FACE_KEYS: FACE_KEYS,
+  sampleGrid: sampleGrid, detectFace: detectFace, detectInBuffer: detectInBuffer,
+  classify: classify,
+  rgbToHsv: rgbToHsv,
+  hungarian: hungarian
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = global.CubeVision;
+
+})(typeof self !== 'undefined' ? self : (typeof globalThis !== 'undefined' ? globalThis : this));
+</script>
+<script>/* ============================================================================
+ * 3D cube renderer + move animation (Three.js r128, global THREE)
+ * State-driven: every step re-paints from a facelet array, so nothing drifts.
+ * ==========================================================================*/
+(function (global) {
+'use strict';
+
+var STICKER_HEX = [0xf8f8f8, 0xc62828, 0x2e9e4f, 0xf6d200, 0xf07818, 0x1f5fd0];
+// U=white R=red F=green D=yellow L=orange B=blue   (standard western scheme)
+
+/* facelet index -> { pos:[x,y,z], mat: material slot } ; +x right, +y up, +z front
+   material slots follow BoxGeometry order: 0:+X 1:-X 2:+Y 3:-Y 4:+Z 5:-Z */
+var MAP = (function () {
+  var map = new Array(54);
+  for (var i = 0; i < 9; i++) {
+    var row = (i / 3) | 0, col = i % 3;
+    map[0 + i]  = { pos: [col - 1, 1, row - 1],       mat: 2 }; // U
+    map[9 + i]  = { pos: [1, 1 - row, 1 - col],       mat: 0 }; // R
+    map[18 + i] = { pos: [col - 1, 1 - row, 1],       mat: 4 }; // F
+    map[27 + i] = { pos: [col - 1, -1, 1 - row],      mat: 3 }; // D
+    map[36 + i] = { pos: [-1, 1 - row, col - 1],      mat: 1 }; // L
+    map[45 + i] = { pos: [1 - col, 1 - row, -1],      mat: 5 }; // B
+  }
+  return map;
+})();
+
+/* move index -> axis + layer + signed quarter turns */
+function moveGeometry(m) {
+  var face = (m / 3) | 0, power = (m % 3) + 1;   // 1,2,3 quarter turns
+  var spec = [
+    { axis: 'y', layer:  1, sign: -1 },  // U
+    { axis: 'x', layer:  1, sign: -1 },  // R
+    { axis: 'z', layer:  1, sign: -1 },  // F
+    { axis: 'y', layer: -1, sign:  1 },  // D
+    { axis: 'x', layer: -1, sign:  1 },  // L
+    { axis: 'z', layer: -1, sign:  1 }   // B
+  ][face];
+  return { axis: spec.axis, layer: spec.layer, angle: spec.sign * power * Math.PI / 2, power: power };
+}
+
+function CubeView(container, opts) {
+  opts = opts || {};
+  this.container = container;
+  var w = container.clientWidth || 400, h = container.clientHeight || 400;
+
+  this.scene = new THREE.Scene();
+  this.camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
+  this.camera.position.set(5.2, 4.6, 6.4);
+  this.camera.lookAt(0, 0, 0);
+
+  this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  this.renderer.setSize(w, h);
+  container.appendChild(this.renderer.domElement);
+
+  this.scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+  var d1 = new THREE.DirectionalLight(0xffffff, 0.55); d1.position.set(6, 9, 7); this.scene.add(d1);
+  var d2 = new THREE.DirectionalLight(0xffffff, 0.28); d2.position.set(-6, -4, -6); this.scene.add(d2);
+
+  this.root = new THREE.Group();
+  this.scene.add(this.root);
+  this.pivot = new THREE.Group();
+  this.root.add(this.pivot);
+
+  this.cubies = [];
+  var geo = new THREE.BoxGeometry(0.94, 0.94, 0.94);
+  for (var x = -1; x <= 1; x++) for (var y = -1; y <= 1; y++) for (var z = -1; z <= 1; z++) {
+    if (x === 0 && y === 0 && z === 0) continue;
+    var mats = [];
+    for (var s = 0; s < 6; s++) mats.push(new THREE.MeshLambertMaterial({ color: 0x14161a }));
+    var mesh = new THREE.Mesh(geo, mats);
+    mesh.position.set(x, y, z);
+    mesh.userData.home = [x, y, z];
+    this.root.add(mesh);
+    this.cubies.push(mesh);
+  }
+  this.byPos = {};
+  this.cubies.forEach(function (c) { this.byPos[c.userData.home.join(',')] = c; }, this);
+
+  this.rotX = 0.42; this.rotY = -0.62;
+  this._installDrag();
+  this._animating = null;
+  this.autoSpin = opts.autoSpin !== false;
+
+  var self = this;
+  this._loop = function () {
+    self._raf = requestAnimationFrame(self._loop);
+    self._tick();
+  };
+  this._loop();
+  window.addEventListener('resize', function () { self.resize(); });
+}
+
+CubeView.prototype.resize = function () {
+  var w = this.container.clientWidth, h = this.container.clientHeight;
+  if (!w || !h) return;
+  this.camera.aspect = w / h;
+  this.camera.updateProjectionMatrix();
+  this.renderer.setSize(w, h);
+};
+
+CubeView.prototype._installDrag = function () {
+  var self = this, dragging = false, lx = 0, ly = 0;
+  var el = this.renderer.domElement;
+  el.style.touchAction = 'none';
+  function down(e) { dragging = true; var p = pt(e); lx = p.x; ly = p.y; }
+  function move(e) {
+    if (!dragging) return;
+    var p = pt(e);
+    self.rotY += (p.x - lx) * 0.009;
+    self.rotX += (p.y - ly) * 0.009;
+    self.rotX = Math.max(-1.2, Math.min(1.2, self.rotX));
+    lx = p.x; ly = p.y;
+    e.preventDefault();
+  }
+  function up() { dragging = false; }
+  function pt(e) { return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY }; }
+  el.addEventListener('mousedown', down); window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  el.addEventListener('touchstart', down, { passive: true });
+  el.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('touchend', up);
+};
+
+CubeView.prototype._tick = function () {
+  var a = this._animating;
+  if (a) {
+    var t = Math.min(1, (performance.now() - a.start) / a.duration);
+    var e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;      // ease in/out
+    this.pivot.rotation[a.axis] = a.angle * e;
+    if (t >= 1) {
+      this._animating = null;
+      this._detach();
+      if (a.done) a.done();
+    }
+  }
+  this.root.rotation.x = this.rotX;
+  this.root.rotation.y = this.rotY;
+  this.renderer.render(this.scene, this.camera);
+};
+
+CubeView.prototype._detach = function () {
+  var self = this;
+  this.pivot.children.slice().forEach(function (c) { self.root.attach(c); });
+  this.pivot.rotation.set(0, 0, 0);
+};
+
+/* paint the cube from a 54-entry facelet array (face ids 0..5) */
+CubeView.prototype.setState = function (facelets) {
+  this._detach();
+  var i, c;
+  for (i = 0; i < this.cubies.length; i++) {
+    c = this.cubies[i];
+    c.position.set(c.userData.home[0], c.userData.home[1], c.userData.home[2]);
+    c.rotation.set(0, 0, 0);
+    c.updateMatrix();
+    for (var s = 0; s < 6; s++) c.material[s].color.setHex(0x14161a);
+  }
+  for (i = 0; i < 54; i++) {
+    var mp = MAP[i];
+    c = this.byPos[mp.pos.join(',')];
+    c.material[mp.mat].color.setHex(STICKER_HEX[facelets[i]]);
+  }
+  this._state = facelets.slice();
+};
+
+/* animate one move; `after` is the facelet array to settle into */
+CubeView.prototype.playMove = function (m, after, duration, done) {
+  var g = moveGeometry(m);
+  var self = this;
+  this._detach();
+  var axisIdx = { x: 0, y: 1, z: 2 }[g.axis];
+  this.cubies.forEach(function (c) {
+    var v = [c.position.x, c.position.y, c.position.z];
+    if (Math.round(v[axisIdx]) === g.layer) self.pivot.attach(c);
+  });
+  this._animating = {
+    axis: g.axis, angle: g.angle, start: performance.now(),
+    duration: duration || 420,
+    done: function () { self.setState(after); if (done) done(); }
+  };
+};
+
+CubeView.prototype.isAnimating = function () { return !!this._animating; };
+CubeView.prototype.cancel = function () { this._animating = null; this._detach(); };
+
+global.CubeView = CubeView;
+global.CUBE_STICKER_HEX = STICKER_HEX;
+global.cubeMoveGeometry = moveGeometry;
+
+})(typeof window !== 'undefined' ? window : this);
+</script>
+<script>/* ==========================================================================
+ * App controller: capture -> review -> solve -> animated walkthrough
+ * ======================================================================== */
+(function () {
+'use strict';
+
+var FACES = ['U','R','F','D','L','B'];
+var FACE_LONG = { U:'Up (top)', R:'Right', F:'Front', D:'Down (bottom)', L:'Left', B:'Back' };
+var HOLD = {
+  U: 'Show the <b>top</b> face. Tip the cube toward you so the <b>front</b> face is at the bottom of the frame.',
+  R: 'Show the <b>right</b> face, <b>top</b> face still pointing up. The front face is now on your left.',
+  F: 'Show the <b>front</b> face straight on, <b>top</b> face pointing up.',
+  D: 'Show the <b>bottom</b> face. Tip the cube away from you so the <b>front</b> face is at the top of the frame.',
+  L: 'Show the <b>left</b> face, <b>top</b> face still pointing up. The back face is now on your left.',
+  B: 'Show the <b>back</b> face, <b>top</b> face still pointing up. The right face is now on your left.'
+};
+var HEX = ['#f8f8f8','#c62828','#2e9e4f','#f6d200','#f07818','#1f5fd0'];
+var COLOR_NAME = ['White','Red','Green','Yellow','Orange','Blue'];
+
+var S = {
+  faces: {},            // key -> { rgb:[9][3], thumb:dataURL }
+  active: 'U',
+  facelets: null,
+  confidence: null,
+  paint: 0,
+  cube: null,
+  solution: null,
+  states: [],
+  idx: 0,
+  playing: false,
+  view: null,
+  stream: null
+};
+
+var $ = function (id) { return document.getElementById(id); };
+function reveal(node) { if (node && node.scrollIntoView) { try { node.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { node.scrollIntoView(); } } }
+function keepInView(node) { if (node && node.scrollIntoView) { try { node.scrollIntoView({ block: 'nearest' }); } catch (e) {} } }
+var el = function (t, c, h) { var e = document.createElement(t); if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
+
+/* ======================================================== capture plumbing */
+function setActive(k) { S.active = k; renderFaceList(); $('holdHint').innerHTML = HOLD[k]; }
+
+function renderFaceList() {
+  var box = $('faceList'); box.innerHTML = '';
+  FACES.forEach(function (k) {
+    var done = !!S.faces[k];
+    var c = el('div', 'facechip' + (k === S.active ? ' on' : '') + (done ? ' done' : ''),
+      '<b>' + k + '</b><span class="st">' + (done ? 'captured' : FACE_LONG[k]) + '</span>');
+    c.onclick = function () { setActive(k); };
+    box.appendChild(c);
+  });
+  renderThumbs();
+  var n = FACES.filter(function (k) { return !!S.faces[k]; }).length;
+  $('capCount').textContent = n + ' of 6 faces captured' +
+    (n >= 5 ? ' — check the dots sit on stickers, then analyse' : '');
+  $('btnAnalyse').disabled = n < 5;
+}
+
+function renderThumbs() {
+  var t = $('thumbs'); t.innerHTML = '';
+  FACES.forEach(function (k) {
+    var f = S.faces[k];
+    var d = el('div', 't' + (f ? '' : ' empty'), f ? '<img src="' + f.thumb + '"><span>' + k + '</span>' : k);
+    d.onclick = function () { setActive(k); };
+    t.appendChild(d);
+  });
+}
+
+/* grab the 3x3 reading out of any drawable source */
+function captureFrom(source, key) {
+  var g = CubeVision.sampleGrid(source);          // finds the cube, then reads it
+  var T = 132;
+  var c = document.createElement('canvas');
+  c.width = c.height = T;
+  var ctx = c.getContext('2d');
+  var roi = g.roi;
+  ctx.drawImage(source, roi.x, roi.y, roi.size, roi.size, 0, 0, T, T);
+  // show exactly which nine points were sampled, so a bad read is obvious
+  ctx.lineWidth = 2;
+  for (var j = 0; j < 3; j++) for (var i = 0; i < 3; i++) {
+    var cx = T * (i + 0.5) / 3, cy = T * (j + 0.5) / 3;
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.stroke();
+  }
+  S.faces[key] = { rgb: g.rgb, thumb: c.toDataURL('image/jpeg', 0.82), roi: roi };
+  renderFaceList();
+  var i = FACES.indexOf(key);
+  for (var n = 1; n <= 6; n++) { var nk = FACES[(i + n) % 6]; if (!S.faces[nk]) { setActive(nk); break; } }
+}
+
+function loadImageFile(file, key) {
+  return new Promise(function (res, rej) {
+    var img = new Image();
+    img.onload = function () { captureFrom(img, key); URL.revokeObjectURL(img.src); res(); };
+    img.onerror = rej;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/* ------------------------------------------------------------- photo pane */
+function initPhotos() {
+  var g = $('photoGrid'); g.innerHTML = '';
+  FACES.forEach(function (k) {
+    var d = el('div', 'drop', '<b>' + k + '</b> &middot; ' + FACE_LONG[k] + '<br><span style="font-size:12px">tap to choose a photo</span>');
+    d.title = 'Shoot the face square-on, filling most of the frame and roughly centred.';
+    d.onclick = function () { pickFile(false, function (files) { loadImageFile(files[0], k); }); };
+    d.ondragover = function (e) { e.preventDefault(); };
+    d.ondrop = function (e) { e.preventDefault(); if (e.dataTransfer.files[0]) loadImageFile(e.dataTransfer.files[0], k); };
+    g.appendChild(d);
+  });
+  $('btnBulk').onclick = function () {
+    pickFile(true, function (files) {
+      var list = Array.prototype.slice.call(files).slice(0, 6);
+      list.reduce(function (chain, f, i) {
+        return chain.then(function () { return loadImageFile(f, FACES[i]); });
+      }, Promise.resolve());
+    });
+  };
+}
+function pickFile(multi, cb) {
+  var inp = $('filePicker');
+  inp.multiple = !!multi;
+  inp.accept = 'image/*';
+  inp.onchange = function () { if (inp.files.length) cb(inp.files); inp.value = ''; };
+  inp.click();
+}
+
+/* ------------------------------------------------------------- video pane */
+function initVideo() {
+  var v = $('vid');
+  $('btnVideoFile').onclick = function () {
+    var inp = $('filePicker');
+    inp.multiple = false; inp.accept = 'video/*';
+    inp.onchange = function () {
+      if (!inp.files.length) return;
+      v.src = URL.createObjectURL(inp.files[0]);
+      v.onloadedmetadata = function () { $('scrub').max = v.duration; $('videoTools').style.display = ''; };
+      inp.value = '';
+    };
+    inp.click();
+  };
+  $('scrub').oninput = function () { v.currentTime = parseFloat(this.value); };
+  v.ontimeupdate = function () { if (!v.paused) $('scrub').value = v.currentTime; };
+  $('btnVidPlay').onclick = function () { if (v.paused) { v.play(); this.textContent = 'Pause'; } else { v.pause(); this.textContent = 'Play'; } };
+  $('btnVidGrab').onclick = function () { v.pause(); $('btnVidPlay').textContent = 'Play'; captureFrom(v, S.active); };
+  $('btnVidAuto').onclick = function () { autoExtract(v); };
+}
+
+/* pull six evenly spaced frames as a starting point the user can then fix */
+function autoExtract(v) {
+  if (!v.duration) return;
+  var i = 0;
+  $('vidStatus').textContent = 'Extracting frames...';
+  function next() {
+    if (i >= 6) { $('vidStatus').textContent = 'Six frames grabbed — check each thumbnail and re-grab any that are off.'; return; }
+    v.currentTime = v.duration * (i + 0.5) / 6;
+    v.onseeked = function () { captureFrom(v, FACES[i]); i++; setTimeout(next, 60); };
+  }
+  next();
+}
+
+/* ------------------------------------------------------------ camera pane */
+function initCamera() {
+  $('btnCamStart').onclick = function () {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
+      .then(function (st) {
+        S.stream = st;
+        var c = $('cam'); c.srcObject = st; c.play();
+        $('camTools').style.display = '';
+        $('btnCamStart').textContent = 'Restart camera';
+        $('camStatus').textContent = 'Line the face up inside the square, then tap Capture.';
+      })
+      .catch(function (e) {
+        $('camStatus').textContent = 'Camera unavailable: ' + e.message +
+          '. On a phone the page must be served over https (or localhost).';
+      });
+  };
+  $('btnCamGrab').onclick = function () { captureFrom($('cam'), S.active); };
+  $('btnCamStop').onclick = function () {
+    if (S.stream) { S.stream.getTracks().forEach(function (t) { t.stop(); }); S.stream = null; }
+    $('camTools').style.display = 'none';
+  };
+}
+
+/* ============================================================ review + fix */
+function analyse() {
+  var have = FACES.filter(function (k) { return !!S.faces[k]; });
+  var faces = {};
+  FACES.forEach(function (k) { faces[k] = S.faces[k] ? S.faces[k].rgb : null; });
+
+  if (have.length === 6) {
+    var r = CubeVision.classify(faces, -1);
+    S.facelets = r.facelets; S.confidence = r.confidence;
+  } else {
+    var missing = FACES.filter(function (k) { return !S.faces[k]; })[0];
+    var mi = FACES.indexOf(missing);
+    var r2 = CubeVision.classify(faces, mi);
+    var comp = CubeSolver.completeFromPartial(r2.facelets);
+    if (comp.error) {
+      $('reviewCard').classList.remove('disabled');
+      S.facelets = r2.facelets.map(function (v) { return v < 0 ? mi : v; });
+      S.confidence = r2.confidence;
+      renderNet();
+      return showStatus('bad', comp.error);
+    }
+    S.facelets = comp.facelets;
+    S.confidence = r2.confidence.map(function (c, i) { return ((i / 9) | 0) === mi ? 1 : c; });
+  }
+  $('reviewCard').classList.remove('disabled');
+  renderNet();
+  validate();
+  reveal($('reviewCard'));
+}
+
+/* the classic unfolded-cube layout, every square clickable */
+var NET_SLOTS = [ [null,'U',null,null], ['L','F','R','B'], [null,'D',null,null] ];
+function renderNet() {
+  var n = $('net'); n.innerHTML = '';
+  NET_SLOTS.forEach(function (row) {
+    row.forEach(function (k) {
+      if (!k) { n.appendChild(el('div')); return; }
+      var f = el('div', 'face', '<span class="lbl">' + k + '</span>');
+      var base = FACES.indexOf(k) * 9;
+      for (var i = 0; i < 9; i++) {
+        (function (idx) {
+          var isC = i === 4;
+          var st = el('div', 'sticker' + (isC ? ' centre' : '') + (!isC && S.confidence[idx] < 0.25 ? ' low' : ''));
+          st.style.background = HEX[S.facelets[idx]];
+          st.title = (isC ? 'Centre — fixed' : COLOR_NAME[S.facelets[idx]]);
+          if (!isC) st.onclick = function () { S.facelets[idx] = S.paint; S.confidence[idx] = 1; renderNet(); validate(); };
+          f.appendChild(st);
+        })(base + i);
+      }
+      n.appendChild(f);
+    });
+  });
+}
+
+function renderPalette() {
+  var p = $('palette'); p.innerHTML = '';
+  HEX.forEach(function (h, i) {
+    var s = el('div', 'swatch' + (i === S.paint ? ' on' : ''));
+    s.style.background = h; s.title = COLOR_NAME[i];
+    s.onclick = function () { S.paint = i; renderPalette(); };
+    p.appendChild(s);
+  });
+}
+
+function validate() {
+  var counts = [0,0,0,0,0,0], i;
+  for (i = 0; i < 54; i++) counts[S.facelets[i]]++;
+  for (i = 0; i < 6; i++) if (counts[i] !== 9) {
+    return showStatus('bad', COLOR_NAME[i] + ' appears ' + counts[i] + ' times — a cube has exactly 9 of each. Click the squares that look wrong and repaint them.');
+  }
+  var r = CubeSolver.faceletsToCubie(S.facelets);
+  if (r.error) return showStatus('bad', r.error);
+  var err = CubeSolver.verifyCubie(r.cube);
+  if (err) return showStatus('bad', err);
+  S.cube = r.cube;
+  var low = S.confidence.filter(function (c) { return c < 0.25; }).length;
+  showStatus('ok', 'Valid cube state.' + (low ? ' ' + low + ' square(s) were a close call — they are outlined, worth a glance.' : ''));
+  $('solveCard').classList.remove('disabled');
+  return true;
+}
+function showStatus(kind, msg) {
+  var s = $('valStatus');
+  s.className = 'status ' + kind; s.innerHTML = msg;
+  if (kind === 'bad') { $('solveCard').classList.add('disabled'); S.cube = null; }
+  return kind === 'ok';
+}
+
+/* =================================================================== solve */
+var worker = null;
+function makeWorker() {
+  var src = document.getElementById('solverSource').textContent;
+  var glue = '\nself.onmessage=function(e){var d=e.data;' +
+    'if(d.cmd==="solve"){' +
+    'CubeSolver.buildTables(function(p,l){self.postMessage({type:"progress",p:p,label:l});});' +
+    'self.postMessage({type:"searching"});' +
+    'var res=CubeSolver.solveFacelets(d.facelets,{timeBudget:d.budget,' +
+    'onImprove:function(mv){self.postMessage({type:"improve",n:mv.length});}});' +
+    'self.postMessage({type:"done",res:res});}};';
+  var blob = new Blob([src, glue], { type: 'text/javascript' });
+  return new Worker(URL.createObjectURL(blob));
+}
+
+function solve() {
+  if (!S.cube) return;
+  $('btnSolve').disabled = true;
+  $('solveMsg').textContent = 'Building lookup tables...';
+  $('solveBar').style.width = '0%';
+  $('solveOut').style.display = 'none';
+  if (!worker) worker = makeWorker();
+  var t0 = performance.now();
+
+  worker.onmessage = function (e) {
+    var d = e.data;
+    if (d.type === 'progress') {
+      $('solveBar').style.width = Math.round(d.p * 88) + '%';
+      $('solveMsg').textContent = 'Building lookup tables — ' + d.label;
+    } else if (d.type === 'searching') {
+      $('solveMsg').textContent = 'Searching for the shortest solution...';
+    } else if (d.type === 'improve') {
+      $('solveBar').style.width = '94%';
+      $('solveMsg').textContent = 'Best so far: ' + d.n + ' moves — still looking for shorter...';
+    } else if (d.type === 'done') {
+      $('btnSolve').disabled = false;
+      $('solveBar').style.width = '100%';
+      if (d.res.error) { $('solveMsg').textContent = d.res.error; return; }
+      $('solveMsg').textContent = 'Solved and verified in ' + ((performance.now() - t0) / 1000).toFixed(1) + 's.';
+      showSolution(d.res);
+    }
+  };
+  worker.postMessage({ cmd: 'solve', facelets: S.facelets, budget: parseInt($('budget').value, 10) * 1000 });
+}
+
+/* ============================================================ walkthrough */
+function describe(m) {
+  var name = CubeSolver.MOVE_NAMES[m];
+  var face = name[0], p = name.length === 1 ? 1 : (name[1] === '2' ? 2 : 3);
+  var layer = { U:'top', R:'right', F:'front', D:'bottom', L:'left', B:'back' }[face];
+  var from  = { U:'from above', R:'from the right', F:'from the front', D:'from below', L:'from the left', B:'from behind' }[face];
+  if (p === 2) return 'Turn the ' + layer + ' layer a half turn (180°).';
+  return 'Turn the ' + layer + ' layer a quarter turn ' + (p === 1 ? 'clockwise' : 'anti-clockwise') + ', looking ' + from + '.';
+}
+
+function showSolution(res) {
+  S.solution = res;
+  $('solveOut').style.display = '';
+  $('moveCount').textContent = res.length;
+  $('verifyLine').innerHTML = res.verified
+    ? '&#10003; Re-checked: replaying these ' + res.length + ' moves on the scanned cube returns it to solved.'
+    : 'Could not verify.';
+  $('optLine').textContent = res.proven
+    ? 'Proved shortest within the two-phase search.'
+    : 'Shortest found in the time allowed (typically 18–21 moves; 20 is the known worst case for any cube).';
+
+  // every intermediate cube state, so any step can be jumped to instantly
+  S.states = [];
+  var c = S.cube;
+  S.states.push(CubeSolver.cubieToFacelets(c));
+  res.moves.forEach(function (m) {
+    c = CubeSolver.multiply(c, CubeSolver.MOVE_CUBE[m]);
+    S.states.push(CubeSolver.cubieToFacelets(c));
+  });
+
+  S.idx = 0;
+  if (!S.view) {
+    try {
+      if (typeof THREE === 'undefined') throw new Error('Three.js did not load');
+      S.view = new CubeView($('viewer'));
+    } catch (e) {
+      S.view = stubView();
+      $('viewer').innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;' +
+        'text-align:center;padding:24px;color:#93a1b5;font-size:13px">The 3D view needs the Three.js library, ' +
+        'which loads from the internet the first time you open this file.<br><br>The move list below still works.</div>';
+    }
+  }
+  S.view.setState(S.states[0]);
+  renderMoves(); renderSteps();
+  reveal($('solveOut'));
+}
+
+function renderMoves() {
+  var box = $('moves'); box.innerHTML = '';
+  S.solution.notation.forEach(function (n, i) {
+    var b = el('div', 'mv' + (i < S.idx ? ' done' : '') + (i === S.idx ? ' now' : ''), n);
+    b.onclick = function () { goTo(i); };
+    box.appendChild(b);
+  });
+  $('stepLabel').textContent = S.idx >= S.solution.length
+    ? 'Done — cube solved'
+    : 'Step ' + (S.idx + 1) + ' of ' + S.solution.length + ': ' + S.solution.notation[S.idx];
+  $('stepDesc').textContent = S.idx >= S.solution.length ? '' : describe(S.solution.moves[S.idx]);
+  $('btnPrev').disabled = S.idx === 0;
+  $('btnNext').disabled = S.idx >= S.solution.length;
+}
+
+function renderSteps() {
+  var box = $('steps'); box.innerHTML = '';
+  S.solution.moves.forEach(function (m, i) {
+    var d = el('div', 's' + (i === S.idx ? ' now' : ''),
+      '<span class="n">' + (i + 1) + '</span><span class="m">' + S.solution.notation[i] + '</span><span class="d">' + describe(m) + '</span>');
+    d.onclick = function () { goTo(i); };
+    box.appendChild(d);
+  });
+}
+
+function goTo(i) {
+  if (S.view.isAnimating()) S.view.cancel();
+  S.idx = Math.max(0, Math.min(S.solution.length, i));
+  S.view.setState(S.states[S.idx]);
+  renderMoves(); renderSteps();
+  keepInView($('steps').children[S.idx]);
+}
+
+function stepForward(then) {
+  if (S.idx >= S.solution.length || S.view.isAnimating()) { if (then) then(); return; }
+  var m = S.solution.moves[S.idx];
+  var speed = parseInt($('speed').value, 10);
+  S.view.playMove(m, S.states[S.idx + 1], speed, function () {
+    S.idx++; renderMoves(); renderSteps();
+    keepInView($('steps').children[Math.min(S.idx, S.solution.length - 1)]);
+    if (then) then();
+  });
+}
+
+function play() {
+  if (S.playing) { S.playing = false; $('btnPlay').textContent = '▶ Play'; return; }
+  if (S.idx >= S.solution.length) goTo(0);
+  S.playing = true; $('btnPlay').textContent = '⏸ Pause';
+  (function loop() {
+    if (!S.playing) return;
+    if (S.idx >= S.solution.length) { S.playing = false; $('btnPlay').textContent = '▶ Play'; return; }
+    stepForward(function () { setTimeout(loop, 90); });
+  })();
+}
+
+/* a do-nothing stand-in so the step list still works without WebGL */
+function stubView() {
+  return { setState: function () {}, playMove: function (m, a, d, done) { if (done) done(); },
+           isAnimating: function () { return false; }, cancel: function () {} };
+}
+
+/* ==================================================================== boot */
+function isTouchDevice() {
+  return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+         ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+}
+
+function init() {
+  renderFaceList(); renderPalette(); setActive('U');
+  initPhotos(); initVideo(); initCamera();
+
+  // phones land on the camera tab, which is why they're here
+  if (isTouchDevice() && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    var camBtn = document.querySelector('.tabs button[data-pane="camera"]');
+    if (camBtn) setTimeout(function () { camBtn.click(); }, 0);
+  }
+
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('on'); });
+      document.querySelectorAll('.pane').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      $('pane-' + b.dataset.pane).classList.add('on');
+    };
+  });
+
+  $('btnAnalyse').onclick = analyse;
+  $('btnSolve').onclick = solve;
+  $('btnPlay').onclick = play;
+  $('btnPrev').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; goTo(S.idx - 1); };
+  $('btnNext').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; stepForward(); };
+  $('btnReset').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; goTo(0); };
+  $('budget').oninput = function () { $('budgetVal').textContent = this.value + 's'; };
+  $('speed').oninput = function () { $('speedVal').textContent = (this.value / 1000).toFixed(2) + 's / move'; };
+
+  $('btnDemo').onclick = function () {
+    var r = CubeSolver.randomCube();
+    S.facelets = CubeSolver.cubieToFacelets(r.cube);
+    S.confidence = new Array(54).fill(1);
+    $('reviewCard').classList.remove('disabled');
+    renderNet(); validate();
+    reveal($('reviewCard'));
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (!S.solution) return;
+    if (e.key === 'ArrowRight') { $('btnNext').click(); }
+    else if (e.key === 'ArrowLeft') { $('btnPrev').click(); }
+    else if (e.key === ' ') { e.preventDefault(); play(); }
+  });
+}
+document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
