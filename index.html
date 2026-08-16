@@ -116,6 +116,73 @@ input[type=file] { display: none; }
 .kv { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 4px; }
 .kv div span { display: block; color: var(--dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; }
 input[type=range] { accent-color: var(--accent); }
+
+/* ---------------- scan net (same layout as the review net) ---------------- */
+.scannet { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 520px; margin: 0 auto; }
+.slot {
+  position: relative; aspect-ratio: 1/1; border-radius: 8px; border: 1.5px solid var(--line);
+  background: var(--panel2); overflow: hidden; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-direction: column; gap: 2px;
+}
+.slot.blank { border: 0; background: transparent; cursor: default; }
+.slot.on { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76,141,255,.35); }
+.slot.filled { border-color: var(--ok); }
+.slot canvas, .slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.slot .tag {
+  position: absolute; left: 4px; top: 3px; font-size: 11px; font-weight: 800;
+  color: #fff; text-shadow: 0 1px 4px #000; letter-spacing: .5px;
+}
+.slot .ph { font-size: 20px; font-weight: 800; color: var(--dim); }
+.slot .ph small { display: block; font-size: 9.5px; font-weight: 500; letter-spacing: .3px; }
+.slot .edit {
+  position: absolute; right: 3px; bottom: 3px; font-size: 9.5px; background: rgba(0,0,0,.62);
+  color: #fff; padding: 2px 5px; border-radius: 4px;
+}
+
+/* ------------------------------- adjuster -------------------------------- */
+.modal {
+  position: fixed; inset: 0; background: rgba(4,6,10,.82); z-index: 60;
+  display: none; align-items: center; justify-content: center; padding: 14px;
+}
+.modal.on { display: flex; }
+.modal .sheet {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px; width: min(560px, 100%); max-height: 96vh; overflow: auto;
+}
+.adjwrap { position: relative; width: 100%; touch-action: none; user-select: none; border-radius: 10px; overflow: hidden; background: #000; }
+.adjwrap canvas { width: 100%; display: block; }
+.adjbox { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); cursor: move; }
+.adjbox .g { position: absolute; width: 30%; height: 30%; }
+.adjbox .dot {
+  position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: rgba(0,0,0,.55); border: 2px solid #fff; pointer-events: none;
+}
+.adjbox .hz, .adjbox .vt { position: absolute; background: rgba(255,255,255,.5); pointer-events: none; }
+.adjbox .hz { left: 0; right: 0; height: 1px; }
+.adjbox .vt { top: 0; bottom: 0; width: 1px; }
+.adjbox .handle {
+  position: absolute; right: -13px; bottom: -13px; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); border: 3px solid #fff; cursor: nwse-resize; touch-action: none;
+}
+.facepick { display: flex; gap: 5px; flex-wrap: wrap; }
+.facepick button { padding: 6px 12px; font-size: 13px; }
+.facepick button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* --------------------- solve layout: side by side on phones -------------- */
+@media (max-width: 880px) {
+  .solve-grid { grid-template-columns: 1.05fr 1fr; gap: 10px; }
+  #viewer { aspect-ratio: 1/1; }
+  .steplist { max-height: 44vh; }
+  .mv { min-width: 36px; padding: 6px 7px; font-size: 13px; }
+  .steplist .s { padding: 7px 8px; font-size: 12px; gap: 6px; }
+  .steplist .s .d { display: none; }
+  .wrap { padding: 14px 10px 60px; }
+}
+@media (max-width: 420px) {
+  .steplist .s .n { min-width: 15px; }
+}
+.playbar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.playbar button { padding: 8px 11px; }
 </style>
 </head>
 <body>
@@ -129,76 +196,70 @@ input[type=range] { accent-color: var(--accent); }
   <!-- ------------------------------------------------------------ STEP 1 -->
   <div class="card">
     <h2><span class="stepnum">1</span>Scan your cube</h2>
-    <p class="muted">Six faces gives the most reliable read. Five works too — the solver reconstructs the last one — but it can be ambiguous.</p>
+    <p class="muted">Faces land in the unfolded-cube layout below as you capture them — the same layout you'll check in step 2. Tap any face to re-aim or replace it.</p>
 
     <div class="tabs" style="margin-top:14px">
       <button class="on" data-pane="photos">Photos</button>
-      <button data-pane="video">Video file</button>
+      <button data-pane="video">One video</button>
       <button data-pane="camera">Live camera</button>
     </div>
 
-    <div class="capture-grid">
-      <div>
-        <!-- photos -->
-        <div class="pane on" id="pane-photos">
-          <div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
-          <div class="row" style="margin-top:12px">
-            <button id="btnBulk">Choose 6 photos at once</button>
-            <span class="muted">assigned in the order U, R, F, D, L, B</span>
-          </div>
-          <div class="row" style="margin-top:6px">
-            <span class="muted">Shoot each face square-on and centred, filling most of the frame. Only the middle square of the photo is read.</span>
-          </div>
-        </div>
-
-        <!-- video -->
-        <div class="pane" id="pane-video">
-          <div class="stage"><video id="vid" playsinline muted></video>
-            <div class="overlay"><div class="box"></div></div>
-          </div>
-          <div class="row" style="margin-top:12px">
-            <button id="btnVideoFile" class="primary">Choose a video</button>
-          </div>
-          <div id="videoTools" style="display:none;margin-top:12px">
-            <input type="range" id="scrub" min="0" max="100" step="0.05" value="0" style="width:100%">
-            <div class="row" style="margin-top:8px">
-              <button id="btnVidPlay">Play</button>
-              <button id="btnVidGrab" class="primary">Capture this face</button>
-              <button id="btnVidAuto" class="ghost">Auto-grab 6 frames</button>
-            </div>
-            <p class="muted" id="vidStatus" style="margin-top:8px">Scrub to a frame where one face fills the square, pick the face on the right, then capture.</p>
-          </div>
-        </div>
-
-        <!-- camera -->
-        <div class="pane" id="pane-camera">
-          <div class="stage"><video id="cam" playsinline muted></video>
-            <div class="overlay"><div class="box"></div></div>
-          </div>
-          <div class="row" style="margin-top:12px">
-            <button id="btnCamStart" class="primary">Start camera</button>
-            <span id="camTools" style="display:none">
-              <button id="btnCamGrab" class="primary">Capture</button>
-              <button id="btnCamStop" class="ghost">Stop</button>
-            </span>
-          </div>
-          <p class="muted" id="camStatus" style="margin-top:8px">Works on a phone browser. The page must be on https for camera access.</p>
-        </div>
+    <!-- photos -->
+    <div class="pane on" id="pane-photos">
+      <div class="row">
+        <button id="btnBulk" class="primary">Choose 6 photos</button>
+        <button id="btnOne">Add one photo</button>
+        <span class="muted">6 photos are assigned in the order U, R, F, D, L, B</span>
       </div>
+    </div>
 
-      <!-- face picker -->
-      <div>
-        <div class="hint" id="holdHint" style="margin-bottom:12px"></div>
-        <div class="facelist" id="faceList"></div>
-        <div class="thumbs" id="thumbs"></div>
-        <div class="row spread" style="margin-top:14px">
-          <span class="muted" id="capCount"></span>
-        </div>
+    <!-- one continuous video -->
+    <div class="pane" id="pane-video">
+      <div class="row">
+        <button id="btnVideoFile" class="primary">Choose a video</button>
+        <span class="muted">One clip showing all six faces as you turn the cube</span>
+      </div>
+      <div id="videoTools" style="display:none;margin-top:12px">
+        <div class="stage" style="max-width:340px"><video id="vid" playsinline muted></video></div>
         <div class="row" style="margin-top:10px">
-          <button id="btnAnalyse" class="primary" disabled>Read the colours</button>
-          <button id="btnDemo" class="ghost" title="Skip scanning and try a random scramble">Try a random cube</button>
+          <button id="btnVidScan" class="primary">Find the six faces</button>
+          <button id="btnVidPlay">Play</button>
         </div>
+        <input type="range" id="scrub" min="0" max="100" step="0.05" value="0" style="width:100%;max-width:340px;margin-top:10px">
+        <div class="row" style="margin-top:8px">
+          <button id="btnVidGrab">Use this frame for the selected face</button>
+        </div>
+        <div class="bar" style="max-width:340px"><i id="vidBar"></i></div>
+        <p class="muted" id="vidStatus" style="margin-top:6px"></p>
       </div>
+    </div>
+
+    <!-- live camera -->
+    <div class="pane" id="pane-camera">
+      <div class="row">
+        <button id="btnCamStart" class="primary">Start camera</button>
+        <span id="camTools" style="display:none">
+          <button id="btnCamGrab" class="primary">Capture</button>
+          <button id="btnCamStop" class="ghost">Stop</button>
+        </span>
+      </div>
+      <div id="camStage" class="stage" style="max-width:340px;margin-top:12px;display:none">
+        <video id="cam" playsinline muted></video>
+        <div class="overlay"><div class="box"></div></div>
+      </div>
+      <p class="muted" id="camStatus" style="margin-top:8px">Needs https. On a phone the app opens here by default.</p>
+    </div>
+
+    <div class="hint" id="holdHint" style="margin:16px 0 12px"></div>
+    <div class="scannet" id="scanNet"></div>
+
+    <div class="row spread" style="margin-top:14px">
+      <span class="muted" id="capCount"></span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnAnalyse" class="primary" disabled>Read the colours</button>
+      <button id="btnDemo" class="ghost">Try a random cube</button>
+      <button id="btnClear" class="ghost">Clear all</button>
     </div>
     <input type="file" id="filePicker">
   </div>
@@ -206,7 +267,7 @@ input[type=range] { accent-color: var(--accent); }
   <!-- ------------------------------------------------------------ STEP 2 -->
   <div class="card disabled" id="reviewCard">
     <h2><span class="stepnum">2</span>Check the read</h2>
-    <p class="muted">Dashed outlines are squares the detector wasn't confident about. Pick a colour, then click any square to correct it. Centres are fixed.</p>
+    <p class="muted">Dashed outlines were close calls. Pick a colour, then click any square to correct it. Centres are fixed.</p>
     <div class="row" style="margin:14px 0 20px">
       <span class="muted">Paint with:</span>
       <div class="palette" id="palette"></div>
@@ -221,56 +282,81 @@ input[type=range] { accent-color: var(--accent); }
     <div class="row" style="margin-top:12px">
       <button id="btnSolve" class="primary">Find the shortest solution</button>
       <label class="muted">search time
-        <input type="range" id="budget" min="1" max="30" value="4" style="vertical-align:middle;width:130px">
+        <input type="range" id="budget" min="1" max="30" value="4" style="vertical-align:middle;width:110px">
         <span id="budgetVal">4s</span>
       </label>
     </div>
     <div class="bar"><i id="solveBar"></i></div>
-    <p class="muted" id="solveMsg" style="margin-top:8px">The first solve builds ~4&nbsp;MB of lookup tables. That takes a couple of seconds, once per session.</p>
+    <p class="muted" id="solveMsg" style="margin-top:8px">The first solve builds ~4&nbsp;MB of lookup tables. A couple of seconds, once per session.</p>
 
-    <div id="solveOut" style="display:none;margin-top:20px">
+    <div id="solveOut" style="display:none;margin-top:18px">
       <div class="kv">
         <div><span>Moves</span><b class="big" id="moveCount">0</b></div>
-        <div style="flex:1;min-width:240px"><span>Checked</span>
+        <div style="flex:1;min-width:220px"><span>Checked</span>
           <div style="color:var(--ok)" id="verifyLine"></div>
           <div class="muted" id="optLine"></div>
         </div>
       </div>
 
-      <div class="solve-grid" style="margin-top:18px">
+      <div style="font-weight:700;font-size:16px;margin-top:14px" id="stepLabel"></div>
+      <div class="muted" id="stepDesc" style="min-height:20px;margin-bottom:10px"></div>
+
+      <div class="solve-grid">
         <div>
           <div id="viewer"></div>
-          <div class="row" style="margin-top:12px;justify-content:center">
-            <button id="btnReset">&#8676; Start</button>
-            <button id="btnPrev">&#8592; Back</button>
+          <div class="playbar" style="margin-top:10px">
+            <button id="btnReset">&#8676;</button>
+            <button id="btnPrev">&#8592;</button>
             <button id="btnPlay" class="primary">&#9654; Play</button>
-            <button id="btnNext">Next &#8594;</button>
+            <button id="btnNext">&#8594;</button>
           </div>
-          <div class="row" style="margin-top:10px;justify-content:center">
-            <label class="muted">speed
-              <input type="range" id="speed" min="120" max="1400" step="20" value="420" style="vertical-align:middle;width:130px">
-              <span id="speedVal">0.42s / move</span>
+          <div class="row" style="margin-top:8px;justify-content:center">
+            <label class="muted" style="font-size:12px">speed
+              <input type="range" id="speed" min="120" max="1400" step="20" value="420" style="vertical-align:middle;width:90px">
             </label>
           </div>
-          <p class="muted" style="text-align:center;margin-top:8px">Drag the cube to look around. Arrow keys step, space plays.</p>
         </div>
-
         <div>
-          <div style="font-weight:700;font-size:17px" id="stepLabel"></div>
-          <div class="muted" id="stepDesc" style="min-height:40px"></div>
-          <div class="moves" id="moves"></div>
+          <div class="moves" id="moves" style="margin-top:0"></div>
           <div class="steplist" id="steps"></div>
         </div>
       </div>
 
-      <p class="muted" style="margin-top:16px">
-        Notation: a bare letter is a quarter turn clockwise looking at that face, <b>'</b> is anti-clockwise,
-        <b>2</b> is a half turn. Hold the cube the same way you scanned it: the face you photographed as
-        <b>F</b> facing you, <b>U</b> on top.
+      <p class="muted" style="margin-top:14px">
+        A bare letter is a quarter turn clockwise looking at that face, <b>'</b> is anti-clockwise,
+        <b>2</b> is a half turn. Hold the cube the way you scanned it: <b>F</b> facing you, <b>U</b> on top.
       </p>
     </div>
   </div>
 
+</div>
+
+<!-- ------------------------------------------------------- box adjuster -->
+<div class="modal" id="adjModal">
+  <div class="sheet">
+    <div class="row spread" style="margin-bottom:10px">
+      <b id="adjTitle">Aim the box</b>
+      <button id="adjClose" class="ghost">Close</button>
+    </div>
+    <p class="muted" style="margin-bottom:10px">Drag the box onto the cube face. Use the blue corner to resize. The nine dots are exactly what gets read.</p>
+    <div class="adjwrap" id="adjWrap">
+      <canvas id="adjCanvas"></canvas>
+      <div class="adjbox" id="adjBox">
+        <div class="vt" style="left:33.33%"></div><div class="vt" style="left:66.66%"></div>
+        <div class="hz" style="top:33.33%"></div><div class="hz" style="top:66.66%"></div>
+        <div class="handle" id="adjHandle"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="muted">This face is:</span>
+      <div class="facepick" id="adjFace"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="adjAuto" class="ghost">Re-detect</button>
+      <button id="adjSave" class="primary">Use this</button>
+      <button id="adjDelete" class="ghost">Remove face</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -957,7 +1043,7 @@ function detectInBuffer(data, W, H) {
   var minSide = Math.min(W, H);
 
   function score(x, y, s) {
-    var c = s / 3, uni = 0, cellL = 0, i, j;
+    var c = s / 3, uni = 0, cellL = 0, satCount = 0, i, j;
     var cm = new Float64Array(27);
     for (j = 0; j < 3; j++) for (i = 0; i < 3; i++) {
       var cx = x + c * (i + 0.5), cy = y + c * (j + 0.5), r = c * 0.26;
@@ -970,30 +1056,38 @@ function detectInBuffer(data, W, H) {
       uni += (Math.sqrt(vR > 0 ? vR : 0) + Math.sqrt(vG > 0 ? vG : 0) + Math.sqrt(vB > 0 ? vB : 0)) / 3;
       var k3 = (j * 3 + i) * 3; cm[k3] = mR; cm[k3 + 1] = mG; cm[k3 + 2] = mB;
       cellL += 0.299 * mR + 0.587 * mG + 0.114 * mB;
+      // a sticker is either strongly coloured or bright plastic; cloth and wood are neither
+      var mx = Math.max(mR, mG, mB), mn = Math.min(mR, mG, mB);
+      if (mx > 1 && (mx - mn) / mx > 0.3) satCount++;
     }
     uni /= 9; cellL /= 9;
 
-    var t = Math.max(1, s * 0.022), y0 = y + s * 0.1, y1 = y + s * 0.9;
-    function strip(cxx, vertical) {
-      var bb = vertical ? box(iL, cxx - t, y0, cxx + t, y1) : box(iL, y0, cxx - t, y1, cxx + t);
+    var t = Math.max(1, s * 0.022), ya = y + s * 0.1, yb = y + s * 0.9;
+    function strip(v, vertical) {
+      var bb = vertical ? box(iL, v - t, ya, v + t, yb) : box(iL, ya, v - t, yb, v + t);
       return bb.v / bb.n;
     }
     var gapL = (strip(x + c, true) + strip(x + 2 * c, true) + strip(y + c, false) + strip(y + 2 * c, false)) / 4;
     var midL = (strip(x + s/6, true) + strip(x + s/2, true) + strip(x + 5*s/6, true) +
                 strip(y + s/6, false) + strip(y + s/2, false) + strip(y + 5*s/6, false)) / 6;
 
-    var off = Math.max(2, s * 0.05), x0 = x + s * 0.12, x1 = x + s * 0.88;
+    var off = Math.max(2, s * 0.05), xa = x + s * 0.12, xb = x + s * 0.88;
     function meanC(bx0, by0, bx1, by1) {
-      var a = box(iR, bx0, by0, bx1, by1), n = a.n;
-      return [a.v / n, box(iG, bx0, by0, bx1, by1).v / n, box(iB, bx0, by0, bx1, by1).v / n];
+      var a = box(iR, bx0, by0, bx1, by1), n2 = a.n;
+      return [a.v / n2, box(iG, bx0, by0, bx1, by1).v / n2, box(iB, bx0, by0, bx1, by1).v / n2];
     }
-    function diff(a, b) { return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]); }
-    var bc = (
-      diff(meanC(x0, y + 1, x1, y + off), meanC(x0, y - off, x1, y - 1)) +
-      diff(meanC(x0, y + s - off, x1, y + s - 1), meanC(x0, y + s + 1, x1, y + s + off)) +
-      diff(meanC(x + 1, y0, x + off, y1), meanC(x - off, y0, x - 1, y1)) +
-      diff(meanC(x + s - off, y0, x + s - 1, y1), meanC(x + s + 1, y0, x + s + off, y1))
-    ) / 4;
+    function diff(a, b2) { return Math.abs(a[0]-b2[0]) + Math.abs(a[1]-b2[1]) + Math.abs(a[2]-b2[2]); }
+    // Each side is checked separately and we keep the WEAKEST. A window covering
+    // only part of the cube has a real edge on some sides but not others, and
+    // averaging let those windows through.
+    var sides = [];
+    if (y - off >= 0) sides.push(diff(meanC(xa, y + 1, xb, y + off), meanC(xa, y - off, xb, y - 1)));
+    if (y + s + off <= H) sides.push(diff(meanC(xa, y + s - off, xb, y + s - 1), meanC(xa, y + s + 1, xb, y + s + off)));
+    if (x - off >= 0) sides.push(diff(meanC(x + 1, ya, x + off, yb), meanC(x - off, ya, x - 1, yb)));
+    if (x + s + off <= W) sides.push(diff(meanC(x + s - off, ya, x + s - 1, yb), meanC(x + s + 1, ya, x + s + off, yb)));
+    if (sides.length < 3) return -1e9;
+    var bc = sides[0];
+    for (i = 1; i < sides.length; i++) if (sides[i] < bc) bc = sides[i];
 
     var spread = 0;
     for (i = 0; i < 9; i++) for (j = i + 1; j < 9; j++) {
@@ -1002,26 +1096,34 @@ function detectInBuffer(data, W, H) {
       if (dd > spread) spread = dd;
     }
 
-    return (cellL - gapL) * 1.0 + bc * 0.55 - uni * 1.3
-         - Math.max(0, cellL - midL) * 1.5 + Math.min(spread, 150) * 0.06
-         + (s / minSide) * 60;
+    // weights fitted against 12 hand-labelled real photos
+    return (cellL - gapL) * 1.268
+         + bc * 0.437
+         - uni * 2.250
+         - Math.max(0, cellL - midL) * 0.841
+         + Math.min(spread, 226.8) * 0.532
+         + (s / minSide) * 121.835
+         + satCount * 11.421;
   }
 
   var best = null, sc;
-  for (var ss = Math.round(minSide * 0.28); ss <= Math.round(minSide * 0.99); ss += 4)
-    for (var yy = -2; yy + ss < H + 2; yy += 4)
-      for (var xx = -2; xx + ss < W + 2; xx += 4) {
+  for (var ss = Math.round(minSide * 0.25); ss <= Math.round(minSide * 0.99); ss += 2)
+    for (var yy = 0; yy + ss <= H; yy += 2)
+      for (var xx = 0; xx + ss <= W; xx += 2) {
         sc = score(xx, yy, ss);
+        if (sc <= -1e8) continue;
         if (!best || sc > best.score) best = { x: xx, y: yy, s: ss, score: sc };
       }
+  if (!best) return { x: 0, y: 0, s: minSide, score: 0 };
   for (var it = 0; it < 4; it++) {
     var step = Math.max(1, Math.round(best.s * 0.04)), improved = false;
     for (var ds = -step * 2; ds <= step * 2; ds++)
       for (var dy = -step; dy <= step; dy++)
         for (var dx = -step; dx <= step; dx++) {
           var nx = best.x + dx, ny = best.y + dy, ns = best.s + ds;
-          if (ns < minSide * 0.2) continue;
+          if (ns < minSide * 0.2 || nx < 0 || ny < 0 || nx + ns > W || ny + ns > H) continue;
           sc = score(nx, ny, ns);
+          if (sc <= -1e8) continue;
           if (sc > best.score) { best = { x: nx, y: ny, s: ns, score: sc }; improved = true; }
         }
     if (!improved) break;
@@ -1436,187 +1538,402 @@ global.cubeMoveGeometry = moveGeometry;
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>/* ==========================================================================
- * App controller: capture -> review -> solve -> animated walkthrough
+ * App controller: scan -> check -> solve -> animated walkthrough
  * ======================================================================== */
 (function () {
 'use strict';
 
 var FACES = ['U','R','F','D','L','B'];
-var FACE_LONG = { U:'Up (top)', R:'Right', F:'Front', D:'Down (bottom)', L:'Left', B:'Back' };
+var FACE_LONG = { U:'Up', R:'Right', F:'Front', D:'Down', L:'Left', B:'Back' };
 var HOLD = {
-  U: 'Show the <b>top</b> face. Tip the cube toward you so the <b>front</b> face is at the bottom of the frame.',
-  R: 'Show the <b>right</b> face, <b>top</b> face still pointing up. The front face is now on your left.',
-  F: 'Show the <b>front</b> face straight on, <b>top</b> face pointing up.',
-  D: 'Show the <b>bottom</b> face. Tip the cube away from you so the <b>front</b> face is at the top of the frame.',
-  L: 'Show the <b>left</b> face, <b>top</b> face still pointing up. The back face is now on your left.',
-  B: 'Show the <b>back</b> face, <b>top</b> face still pointing up. The right face is now on your left.'
+  U: 'Showing the <b>top</b> face. Tip the cube toward you so the <b>front</b> face is nearest you.',
+  R: 'Showing the <b>right</b> face, <b>top</b> still up. The front face is now on your left.',
+  F: 'Showing the <b>front</b> face straight on, <b>top</b> up.',
+  D: 'Showing the <b>bottom</b> face. Tip the cube away so the <b>front</b> face is furthest from you.',
+  L: 'Showing the <b>left</b> face, <b>top</b> still up. The back face is now on your left.',
+  B: 'Showing the <b>back</b> face, <b>top</b> still up. The right face is now on your left.'
 };
 var HEX = ['#f8f8f8','#c62828','#2e9e4f','#f6d200','#f07818','#1f5fd0'];
 var COLOR_NAME = ['White','Red','Green','Yellow','Orange','Blue'];
+/* the classic unfolded layout; null = empty cell */
+var NET_SLOTS = [ [null,'U',null,null], ['L','F','R','B'], [null,'D',null,null] ];
 
 var S = {
-  faces: {},            // key -> { rgb:[9][3], thumb:dataURL }
+  faces: {},        // key -> { src: canvas, roi:{x,y,size}, rgb:[9][3] }
   active: 'U',
-  facelets: null,
-  confidence: null,
-  paint: 0,
-  cube: null,
-  solution: null,
-  states: [],
-  idx: 0,
-  playing: false,
-  view: null,
-  stream: null
+  facelets: null, confidence: null, paint: 0,
+  cube: null, solution: null, states: [], idx: 0, playing: false,
+  view: null, stream: null, adjKey: null, adjRoi: null, adjScale: 1
 };
 
 var $ = function (id) { return document.getElementById(id); };
-function reveal(node) { if (node && node.scrollIntoView) { try { node.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { node.scrollIntoView(); } } }
-function keepInView(node) { if (node && node.scrollIntoView) { try { node.scrollIntoView({ block: 'nearest' }); } catch (e) {} } }
-var el = function (t, c, h) { var e = document.createElement(t); if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
+function el(t, c, h) { var e = document.createElement(t); if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; }
+function reveal(n) { if (n && n.scrollIntoView) { try { n.scrollIntoView({ behavior:'smooth', block:'start' }); } catch (e) { n.scrollIntoView(); } } }
 
-/* ======================================================== capture plumbing */
-function setActive(k) { S.active = k; renderFaceList(); $('holdHint').innerHTML = HOLD[k]; }
+/* ---------------------------------------------------------- image helpers */
+/* everything is normalised to a modest-sized canvas: fast to scan, cheap to keep */
+function toCanvas(source, maxSide) {
+  maxSide = maxSide || 900;
+  var w = source.videoWidth || source.naturalWidth || source.width;
+  var h = source.videoHeight || source.naturalHeight || source.height;
+  var k = Math.min(1, maxSide / Math.max(w, h));
+  var c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k));
+  c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+  return c;
+}
+function autoRoi(cv) {
+  try {
+    var d = CubeVision.detectFace(cv, 140);
+    return { x: d.x, y: d.y, size: d.size };
+  } catch (e) {
+    var s = Math.min(cv.width, cv.height) * 0.7;
+    return { x: (cv.width - s) / 2, y: (cv.height - s) / 2, size: s };
+  }
+}
+function readFace(cv, roi) { return CubeVision.sampleGrid(cv, roi).rgb; }
 
-function renderFaceList() {
-  var box = $('faceList'); box.innerHTML = '';
-  FACES.forEach(function (k) {
-    var done = !!S.faces[k];
-    var c = el('div', 'facechip' + (k === S.active ? ' on' : '') + (done ? ' done' : ''),
-      '<b>' + k + '</b><span class="st">' + (done ? 'captured' : FACE_LONG[k]) + '</span>');
-    c.onclick = function () { setActive(k); };
-    box.appendChild(c);
+function setFace(key, cv, roi) {
+  roi = roi || autoRoi(cv);
+  S.faces[key] = { src: cv, roi: roi, rgb: readFace(cv, roi) };
+  renderScanNet();
+}
+function nextEmpty(from) {
+  var i = FACES.indexOf(from);
+  for (var n = 1; n <= 6; n++) { var k = FACES[(i + n) % 6]; if (!S.faces[k]) return k; }
+  return null;
+}
+function setActive(k) { S.active = k; $('holdHint').innerHTML = HOLD[k]; renderScanNet(); }
+
+/* ------------------------------------------------------------- scan net */
+function drawSlot(cv, roi, size) {
+  var c = document.createElement('canvas');
+  c.width = c.height = size;
+  var ctx = c.getContext('2d');
+  ctx.drawImage(cv, roi.x, roi.y, roi.size, roi.size, 0, 0, size, size);
+  ctx.lineWidth = 1.6;
+  for (var j = 0; j < 3; j++) for (var i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(size * (i + 0.5) / 3, size * (j + 0.5) / 3, Math.max(3, size * 0.035), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.stroke();
+  }
+  return c;
+}
+
+function renderScanNet() {
+  var box = $('scanNet'); box.innerHTML = '';
+  NET_SLOTS.forEach(function (row) {
+    row.forEach(function (k) {
+      if (!k) { box.appendChild(el('div', 'slot blank')); return; }
+      var f = S.faces[k];
+      var d = el('div', 'slot' + (k === S.active ? ' on' : '') + (f ? ' filled' : ''));
+      if (f) {
+        d.appendChild(drawSlot(f.src, f.roi, 132));
+        d.appendChild(el('span', 'tag', k));
+        d.appendChild(el('span', 'edit', 'adjust'));
+        d.onclick = function () { setActive(k); openAdjuster(k); };
+      } else {
+        d.appendChild(el('div', 'ph', k + '<small>' + FACE_LONG[k] + '</small>'));
+        d.onclick = function () { setActive(k); };
+      }
+      box.appendChild(d);
+    });
   });
-  renderThumbs();
   var n = FACES.filter(function (k) { return !!S.faces[k]; }).length;
   $('capCount').textContent = n + ' of 6 faces captured' +
-    (n >= 5 ? ' — check the dots sit on stickers, then analyse' : '');
+    (n >= 5 ? ' — check each face looks right, then read the colours' : '');
   $('btnAnalyse').disabled = n < 5;
 }
 
-function renderThumbs() {
-  var t = $('thumbs'); t.innerHTML = '';
+/* -------------------------------------------------------------- adjuster */
+function openAdjuster(key) {
+  var f = S.faces[key];
+  if (!f) return;
+  S.adjKey = key;
+  S.adjRoi = { x: f.roi.x, y: f.roi.y, size: f.roi.size };
+  var cv = f.src;
+  var canvas = $('adjCanvas');
+  canvas.width = cv.width; canvas.height = cv.height;
+  canvas.getContext('2d').drawImage(cv, 0, 0);
+  $('adjTitle').textContent = 'Aim the box — face ' + key;
+  renderFacePick();
+  $('adjModal').classList.add('on');
+  requestAnimationFrame(syncAdjBox);
+}
+function renderFacePick() {
+  var box = $('adjFace'); box.innerHTML = '';
   FACES.forEach(function (k) {
-    var f = S.faces[k];
-    var d = el('div', 't' + (f ? '' : ' empty'), f ? '<img src="' + f.thumb + '"><span>' + k + '</span>' : k);
-    d.onclick = function () { setActive(k); };
-    t.appendChild(d);
+    var b = el('button', k === S.adjKey ? 'on' : '', k);
+    b.onclick = function () {
+      if (k === S.adjKey) return;
+      var moving = S.faces[S.adjKey];
+      var displaced = S.faces[k];
+      S.faces[k] = moving;
+      if (displaced) S.faces[S.adjKey] = displaced; else delete S.faces[S.adjKey];
+      S.adjKey = k; renderFacePick(); renderScanNet();
+    };
+    box.appendChild(b);
   });
 }
-
-/* grab the 3x3 reading out of any drawable source */
-function captureFrom(source, key) {
-  var g = CubeVision.sampleGrid(source);          // finds the cube, then reads it
-  var T = 132;
-  var c = document.createElement('canvas');
-  c.width = c.height = T;
-  var ctx = c.getContext('2d');
-  var roi = g.roi;
-  ctx.drawImage(source, roi.x, roi.y, roi.size, roi.size, 0, 0, T, T);
-  // show exactly which nine points were sampled, so a bad read is obvious
-  ctx.lineWidth = 2;
-  for (var j = 0; j < 3; j++) for (var i = 0; i < 3; i++) {
-    var cx = T * (i + 0.5) / 3, cy = T * (j + 0.5) / 3;
-    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.stroke();
+function adjDisplayScale() {
+  var canvas = $('adjCanvas');
+  return canvas.clientWidth / canvas.width || 1;
+}
+function syncAdjBox() {
+  var k = adjDisplayScale(), b = $('adjBox'), r = S.adjRoi;
+  b.style.left = (r.x * k) + 'px'; b.style.top = (r.y * k) + 'px';
+  b.style.width = (r.size * k) + 'px'; b.style.height = (r.size * k) + 'px';
+  var dots = b.querySelectorAll('.dot');
+  if (!dots.length) {
+    for (var j = 0; j < 3; j++) for (var i = 0; i < 3; i++) {
+      var d = el('div', 'dot');
+      d.style.left = ((i + 0.5) / 3 * 100) + '%';
+      d.style.top = ((j + 0.5) / 3 * 100) + '%';
+      b.appendChild(d);
+    }
   }
-  S.faces[key] = { rgb: g.rgb, thumb: c.toDataURL('image/jpeg', 0.82), roi: roi };
-  renderFaceList();
-  var i = FACES.indexOf(key);
-  for (var n = 1; n <= 6; n++) { var nk = FACES[(i + n) % 6]; if (!S.faces[nk]) { setActive(nk); break; } }
+}
+function clampRoi() {
+  var cv = $('adjCanvas'), r = S.adjRoi;
+  r.size = Math.max(24, Math.min(r.size, Math.min(cv.width, cv.height)));
+  r.x = Math.max(0, Math.min(r.x, cv.width - r.size));
+  r.y = Math.max(0, Math.min(r.y, cv.height - r.size));
+}
+function initAdjuster() {
+  var wrap = $('adjWrap'), boxEl = $('adjBox'), handle = $('adjHandle');
+  var mode = null, sx = 0, sy = 0, ox = 0, oy = 0, os = 0;
+  function pt(e) { var t = e.touches ? e.touches[0] : e; return { x: t.clientX, y: t.clientY }; }
+  function down(m) {
+    return function (e) {
+      mode = m; var p = pt(e); sx = p.x; sy = p.y;
+      ox = S.adjRoi.x; oy = S.adjRoi.y; os = S.adjRoi.size;
+      e.preventDefault(); e.stopPropagation();
+    };
+  }
+  function move(e) {
+    if (!mode) return;
+    var p = pt(e), k = adjDisplayScale();
+    var dx = (p.x - sx) / k, dy = (p.y - sy) / k;
+    if (mode === 'move') { S.adjRoi.x = ox + dx; S.adjRoi.y = oy + dy; }
+    else { S.adjRoi.size = os + (dx + dy) / 2; }
+    clampRoi(); syncAdjBox(); e.preventDefault();
+  }
+  function up() { mode = null; }
+  boxEl.addEventListener('mousedown', down('move'));
+  boxEl.addEventListener('touchstart', down('move'), { passive: false });
+  handle.addEventListener('mousedown', down('size'));
+  handle.addEventListener('touchstart', down('size'), { passive: false });
+  window.addEventListener('mousemove', move);
+  window.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('mouseup', up);
+  window.addEventListener('touchend', up);
+  // tapping the picture recentres the box there
+  wrap.addEventListener('click', function (e) {
+    if (mode) return;
+    var rect = $('adjCanvas').getBoundingClientRect(), k = adjDisplayScale();
+    var x = (e.clientX - rect.left) / k, y = (e.clientY - rect.top) / k;
+    if (x < S.adjRoi.x || x > S.adjRoi.x + S.adjRoi.size || y < S.adjRoi.y || y > S.adjRoi.y + S.adjRoi.size) {
+      S.adjRoi.x = x - S.adjRoi.size / 2; S.adjRoi.y = y - S.adjRoi.size / 2;
+      clampRoi(); syncAdjBox();
+    }
+  });
+  $('adjClose').onclick = function () { $('adjModal').classList.remove('on'); };
+  $('adjSave').onclick = function () {
+    var f = S.faces[S.adjKey];
+    f.roi = { x: S.adjRoi.x, y: S.adjRoi.y, size: S.adjRoi.size };
+    f.rgb = readFace(f.src, f.roi);
+    $('adjModal').classList.remove('on');
+    renderScanNet();
+  };
+  $('adjAuto').onclick = function () {
+    S.adjRoi = autoRoi(S.faces[S.adjKey].src); clampRoi(); syncAdjBox();
+  };
+  $('adjDelete').onclick = function () {
+    delete S.faces[S.adjKey];
+    $('adjModal').classList.remove('on'); renderScanNet();
+  };
+  window.addEventListener('resize', function () { if ($('adjModal').classList.contains('on')) syncAdjBox(); });
 }
 
-function loadImageFile(file, key) {
+/* ------------------------------------------------------------ photo input */
+function pickFile(multi, accept, cb) {
+  var inp = $('filePicker');
+  inp.multiple = !!multi; inp.accept = accept;
+  inp.onchange = function () { if (inp.files.length) cb(inp.files); inp.value = ''; };
+  inp.click();
+}
+function loadImage(file) {
   return new Promise(function (res, rej) {
     var img = new Image();
-    img.onload = function () { captureFrom(img, key); URL.revokeObjectURL(img.src); res(); };
+    img.onload = function () { var c = toCanvas(img); URL.revokeObjectURL(img.src); res(c); };
     img.onerror = rej;
     img.src = URL.createObjectURL(file);
   });
 }
-
-/* ------------------------------------------------------------- photo pane */
 function initPhotos() {
-  var g = $('photoGrid'); g.innerHTML = '';
-  FACES.forEach(function (k) {
-    var d = el('div', 'drop', '<b>' + k + '</b> &middot; ' + FACE_LONG[k] + '<br><span style="font-size:12px">tap to choose a photo</span>');
-    d.title = 'Shoot the face square-on, filling most of the frame and roughly centred.';
-    d.onclick = function () { pickFile(false, function (files) { loadImageFile(files[0], k); }); };
-    d.ondragover = function (e) { e.preventDefault(); };
-    d.ondrop = function (e) { e.preventDefault(); if (e.dataTransfer.files[0]) loadImageFile(e.dataTransfer.files[0], k); };
-    g.appendChild(d);
-  });
   $('btnBulk').onclick = function () {
-    pickFile(true, function (files) {
+    pickFile(true, 'image/*', function (files) {
       var list = Array.prototype.slice.call(files).slice(0, 6);
       list.reduce(function (chain, f, i) {
-        return chain.then(function () { return loadImageFile(f, FACES[i]); });
-      }, Promise.resolve());
+        return chain.then(function () {
+          return loadImage(f).then(function (cv) { setFace(FACES[i], cv); });
+        });
+      }, Promise.resolve()).then(function () {
+        var e = nextEmpty(S.active); if (e) setActive(e); else renderScanNet();
+      });
+    });
+  };
+  $('btnOne').onclick = function () {
+    pickFile(false, 'image/*', function (files) {
+      loadImage(files[0]).then(function (cv) {
+        var k = S.active; setFace(k, cv);
+        var e = nextEmpty(k); if (e) setActive(e);
+      });
     });
   };
 }
-function pickFile(multi, cb) {
-  var inp = $('filePicker');
-  inp.multiple = !!multi;
-  inp.accept = 'image/*';
-  inp.onchange = function () { if (inp.files.length) cb(inp.files); inp.value = ''; };
-  inp.click();
-}
 
-/* ------------------------------------------------------------- video pane */
+/* ------------------------------------------------------------ video input */
+function seek(v, t) {
+  return new Promise(function (res) {
+    var done = function () { v.removeEventListener('seeked', done); res(); };
+    v.addEventListener('seeked', done);
+    v.currentTime = Math.min(Math.max(0, t), Math.max(0, v.duration - 0.02));
+  });
+}
 function initVideo() {
   var v = $('vid');
   $('btnVideoFile').onclick = function () {
-    var inp = $('filePicker');
-    inp.multiple = false; inp.accept = 'video/*';
-    inp.onchange = function () {
-      if (!inp.files.length) return;
-      v.src = URL.createObjectURL(inp.files[0]);
-      v.onloadedmetadata = function () { $('scrub').max = v.duration; $('videoTools').style.display = ''; };
-      inp.value = '';
-    };
-    inp.click();
+    pickFile(false, 'video/*', function (files) {
+      v.src = URL.createObjectURL(files[0]);
+      v.onloadedmetadata = function () {
+        $('scrub').max = v.duration;
+        $('videoTools').style.display = '';
+        $('vidStatus').textContent = 'Ready. Tap "Find the six faces", or scrub and assign frames yourself.';
+      };
+    });
   };
   $('scrub').oninput = function () { v.currentTime = parseFloat(this.value); };
   v.ontimeupdate = function () { if (!v.paused) $('scrub').value = v.currentTime; };
-  $('btnVidPlay').onclick = function () { if (v.paused) { v.play(); this.textContent = 'Pause'; } else { v.pause(); this.textContent = 'Play'; } };
-  $('btnVidGrab').onclick = function () { v.pause(); $('btnVidPlay').textContent = 'Play'; captureFrom(v, S.active); };
-  $('btnVidAuto').onclick = function () { autoExtract(v); };
+  $('btnVidPlay').onclick = function () {
+    if (v.paused) { v.play(); this.textContent = 'Pause'; } else { v.pause(); this.textContent = 'Play'; }
+  };
+  $('btnVidGrab').onclick = function () {
+    v.pause(); $('btnVidPlay').textContent = 'Play';
+    var cv = toCanvas(v); setFace(S.active, cv);
+    var e = nextEmpty(S.active); if (e) setActive(e);
+  };
+  $('btnVidScan').onclick = function () { scanVideo(v); };
 }
 
-/* pull six evenly spaced frames as a starting point the user can then fix */
-function autoExtract(v) {
-  if (!v.duration) return;
-  var i = 0;
-  $('vidStatus').textContent = 'Extracting frames...';
-  function next() {
-    if (i >= 6) { $('vidStatus').textContent = 'Six frames grabbed — check each thumbnail and re-grab any that are off.'; return; }
-    v.currentTime = v.duration * (i + 0.5) / 6;
-    v.onseeked = function () { captureFrom(v, FACES[i]); i++; setTimeout(next, 60); };
+/* Walk the clip, find frames where a cube face is square-on, then group them by
+   centre-sticker colour — six faces, six different centres. */
+function scanVideo(v) {
+  if (!v.duration || !isFinite(v.duration)) return;
+  var N = Math.min(80, Math.max(24, Math.round(v.duration * 5)));
+  var cands = [], i = 0;
+  $('vidStatus').textContent = 'Scanning the clip...';
+  v.pause(); $('btnVidPlay').textContent = 'Play';
+
+  function step() {
+    if (i >= N) return finish();
+    $('vidBar').style.width = Math.round(i / N * 100) + '%';
+    seek(v, v.duration * (i + 0.5) / N).then(function () {
+      var small = toCanvas(v, 420);
+      try {
+        var det = CubeVision.detectFace(small, 130);
+        var roi = { x: det.x, y: det.y, size: det.size };
+        var rgb = CubeVision.sampleGrid(small, roi).rgb;
+        cands.push({ t: v.currentTime, score: det.score, centre: rgb[4], rgb: rgb });
+      } catch (e) { /* frame unusable, skip */ }
+      i++; setTimeout(step, 0);
+    });
   }
-  next();
+  function finish() {
+    $('vidBar').style.width = '100%';
+    if (cands.length < 6) { $('vidStatus').textContent = 'Could not find six clear faces. Scrub and assign frames manually.'; return; }
+    var groups = groupByCentre(cands, 6);
+    groups.sort(function (a, b) { return a.t - b.t; });      // order of appearance
+    var picked = groups.slice(0, 6);
+    $('vidStatus').textContent = 'Pulling the six best frames...';
+    var n = 0;
+    (function grab() {
+      if (n >= picked.length) {
+        $('vidStatus').textContent = 'Six faces placed in order of appearance. Check each one — tap a face to re-aim it or change which face it is.';
+        renderScanNet(); return;
+      }
+      seek(v, picked[n].t).then(function () {
+        setFace(FACES[n], toCanvas(v));
+        n++; grab();
+      });
+    })();
+  }
+  step();
+}
+/* k-means over centre-sticker colour, seeded farthest-point */
+function groupByCentre(cands, k) {
+  var feat = cands.map(function (c) {
+    var h = CubeVision.rgbToHsv(c.centre), r = h[0] * Math.PI / 180;
+    return [Math.cos(r) * h[1], Math.sin(r) * h[1], h[2] * 0.75];
+  });
+  function d2(a, b) { var x=a[0]-b[0], y=a[1]-b[1], z=a[2]-b[2]; return x*x+y*y+z*z; }
+  var seeds = [feat[0]], si = [0], i, j;
+  while (seeds.length < k) {
+    var bi = 0, bd = -1;
+    for (i = 0; i < feat.length; i++) {
+      var m = Infinity;
+      for (j = 0; j < seeds.length; j++) m = Math.min(m, d2(feat[i], seeds[j]));
+      if (m > bd) { bd = m; bi = i; }
+    }
+    seeds.push(feat[bi]); si.push(bi);
+  }
+  var assign = new Array(feat.length);
+  for (var it = 0; it < 8; it++) {
+    for (i = 0; i < feat.length; i++) {
+      var w = 0, wd = Infinity;
+      for (j = 0; j < k; j++) { var d = d2(feat[i], seeds[j]); if (d < wd) { wd = d; w = j; } }
+      assign[i] = w;
+    }
+    for (j = 0; j < k; j++) {
+      var acc = [0,0,0], cnt = 0;
+      for (i = 0; i < feat.length; i++) if (assign[i] === j) { acc[0]+=feat[i][0]; acc[1]+=feat[i][1]; acc[2]+=feat[i][2]; cnt++; }
+      if (cnt) seeds[j] = [acc[0]/cnt, acc[1]/cnt, acc[2]/cnt];
+    }
+  }
+  var out = [];
+  for (j = 0; j < k; j++) {
+    var best = null;
+    for (i = 0; i < feat.length; i++) if (assign[i] === j && (!best || cands[i].score > best.score)) best = cands[i];
+    if (best) out.push(best);
+  }
+  return out;
 }
 
-/* ------------------------------------------------------------ camera pane */
+/* ----------------------------------------------------------- live camera */
 function initCamera() {
   $('btnCamStart').onclick = function () {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' }, width: { ideal:1280 } }, audio: false })
       .then(function (st) {
         S.stream = st;
         var c = $('cam'); c.srcObject = st; c.play();
-        $('camTools').style.display = '';
+        $('camStage').style.display = ''; $('camTools').style.display = '';
         $('btnCamStart').textContent = 'Restart camera';
-        $('camStatus').textContent = 'Line the face up inside the square, then tap Capture.';
+        $('camStatus').textContent = 'Fill the square with one face, then Capture. The box is auto-aimed after each shot — check the net below.';
       })
       .catch(function (e) {
-        $('camStatus').textContent = 'Camera unavailable: ' + e.message +
-          '. On a phone the page must be served over https (or localhost).';
+        $('camStatus').textContent = 'Camera unavailable: ' + e.message + '. The page must be served over https.';
       });
   };
-  $('btnCamGrab').onclick = function () { captureFrom($('cam'), S.active); };
+  $('btnCamGrab').onclick = function () {
+    var cv = toCanvas($('cam'));
+    var k = S.active; setFace(k, cv);
+    var e = nextEmpty(k); if (e) setActive(e);
+  };
   $('btnCamStop').onclick = function () {
     if (S.stream) { S.stream.getTracks().forEach(function (t) { t.stop(); }); S.stream = null; }
-    $('camTools').style.display = 'none';
+    $('camTools').style.display = 'none'; $('camStage').style.display = 'none';
   };
 }
 
@@ -1645,13 +1962,10 @@ function analyse() {
     S.confidence = r2.confidence.map(function (c, i) { return ((i / 9) | 0) === mi ? 1 : c; });
   }
   $('reviewCard').classList.remove('disabled');
-  renderNet();
-  validate();
+  renderNet(); validate();
   reveal($('reviewCard'));
 }
 
-/* the classic unfolded-cube layout, every square clickable */
-var NET_SLOTS = [ [null,'U',null,null], ['L','F','R','B'], [null,'D',null,null] ];
 function renderNet() {
   var n = $('net'); n.innerHTML = '';
   NET_SLOTS.forEach(function (row) {
@@ -1660,20 +1974,18 @@ function renderNet() {
       var f = el('div', 'face', '<span class="lbl">' + k + '</span>');
       var base = FACES.indexOf(k) * 9;
       for (var i = 0; i < 9; i++) {
-        (function (idx) {
-          var isC = i === 4;
+        (function (idx, isC) {
           var st = el('div', 'sticker' + (isC ? ' centre' : '') + (!isC && S.confidence[idx] < 0.25 ? ' low' : ''));
           st.style.background = HEX[S.facelets[idx]];
-          st.title = (isC ? 'Centre — fixed' : COLOR_NAME[S.facelets[idx]]);
+          st.title = isC ? 'Centre — fixed' : COLOR_NAME[S.facelets[idx]];
           if (!isC) st.onclick = function () { S.facelets[idx] = S.paint; S.confidence[idx] = 1; renderNet(); validate(); };
           f.appendChild(st);
-        })(base + i);
+        })(base + i, i === 4);
       }
       n.appendChild(f);
     });
   });
 }
-
 function renderPalette() {
   var p = $('palette'); p.innerHTML = '';
   HEX.forEach(function (h, i) {
@@ -1683,20 +1995,18 @@ function renderPalette() {
     p.appendChild(s);
   });
 }
-
 function validate() {
   var counts = [0,0,0,0,0,0], i;
   for (i = 0; i < 54; i++) counts[S.facelets[i]]++;
-  for (i = 0; i < 6; i++) if (counts[i] !== 9) {
-    return showStatus('bad', COLOR_NAME[i] + ' appears ' + counts[i] + ' times — a cube has exactly 9 of each. Click the squares that look wrong and repaint them.');
-  }
+  for (i = 0; i < 6; i++) if (counts[i] !== 9)
+    return showStatus('bad', COLOR_NAME[i] + ' appears ' + counts[i] + ' times — a cube has exactly 9 of each. Repaint the squares that look wrong, or go back and re-aim a face.');
   var r = CubeSolver.faceletsToCubie(S.facelets);
   if (r.error) return showStatus('bad', r.error);
   var err = CubeSolver.verifyCubie(r.cube);
   if (err) return showStatus('bad', err);
   S.cube = r.cube;
   var low = S.confidence.filter(function (c) { return c < 0.25; }).length;
-  showStatus('ok', 'Valid cube state.' + (low ? ' ' + low + ' square(s) were a close call — they are outlined, worth a glance.' : ''));
+  showStatus('ok', 'Valid cube state.' + (low ? ' ' + low + ' square(s) were a close call — outlined below.' : ''));
   $('solveCard').classList.remove('disabled');
   return true;
 }
@@ -1718,10 +2028,8 @@ function makeWorker() {
     'var res=CubeSolver.solveFacelets(d.facelets,{timeBudget:d.budget,' +
     'onImprove:function(mv){self.postMessage({type:"improve",n:mv.length});}});' +
     'self.postMessage({type:"done",res:res});}};';
-  var blob = new Blob([src, glue], { type: 'text/javascript' });
-  return new Worker(URL.createObjectURL(blob));
+  return new Worker(URL.createObjectURL(new Blob([src, glue], { type:'text/javascript' })));
 }
-
 function solve() {
   if (!S.cube) return;
   $('btnSolve').disabled = true;
@@ -1730,7 +2038,6 @@ function solve() {
   $('solveOut').style.display = 'none';
   if (!worker) worker = makeWorker();
   var t0 = performance.now();
-
   worker.onmessage = function (e) {
     var d = e.data;
     if (d.type === 'progress') {
@@ -1740,7 +2047,7 @@ function solve() {
       $('solveMsg').textContent = 'Searching for the shortest solution...';
     } else if (d.type === 'improve') {
       $('solveBar').style.width = '94%';
-      $('solveMsg').textContent = 'Best so far: ' + d.n + ' moves — still looking for shorter...';
+      $('solveMsg').textContent = 'Best so far: ' + d.n + ' moves — still looking...';
     } else if (d.type === 'done') {
       $('btnSolve').disabled = false;
       $('solveBar').style.width = '100%';
@@ -1749,7 +2056,7 @@ function solve() {
       showSolution(d.res);
     }
   };
-  worker.postMessage({ cmd: 'solve', facelets: S.facelets, budget: parseInt($('budget').value, 10) * 1000 });
+  worker.postMessage({ cmd:'solve', facelets: S.facelets, budget: parseInt($('budget').value, 10) * 1000 });
 }
 
 /* ============================================================ walkthrough */
@@ -1761,7 +2068,10 @@ function describe(m) {
   if (p === 2) return 'Turn the ' + layer + ' layer a half turn (180°).';
   return 'Turn the ' + layer + ' layer a quarter turn ' + (p === 1 ? 'clockwise' : 'anti-clockwise') + ', looking ' + from + '.';
 }
-
+function stubView() {
+  return { setState:function(){}, playMove:function(m,a,d,done){ if(done) done(); },
+           isAnimating:function(){ return false; }, cancel:function(){} };
+}
 function showSolution(res) {
   S.solution = res;
   $('solveOut').style.display = '';
@@ -1771,9 +2081,8 @@ function showSolution(res) {
     : 'Could not verify.';
   $('optLine').textContent = res.proven
     ? 'Proved shortest within the two-phase search.'
-    : 'Shortest found in the time allowed (typically 18–21 moves; 20 is the known worst case for any cube).';
+    : 'Shortest found in the time allowed (typically 18–21 moves).';
 
-  // every intermediate cube state, so any step can be jumped to instantly
   S.states = [];
   var c = S.cube;
   S.states.push(CubeSolver.cubieToFacelets(c));
@@ -1785,20 +2094,19 @@ function showSolution(res) {
   S.idx = 0;
   if (!S.view) {
     try {
-      if (typeof THREE === 'undefined') throw new Error('Three.js did not load');
+      if (typeof THREE === 'undefined') throw new Error('Three.js unavailable');
       S.view = new CubeView($('viewer'));
     } catch (e) {
       S.view = stubView();
       $('viewer').innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;' +
-        'text-align:center;padding:24px;color:#93a1b5;font-size:13px">The 3D view needs the Three.js library, ' +
-        'which loads from the internet the first time you open this file.<br><br>The move list below still works.</div>';
+        'text-align:center;padding:16px;color:#93a1b5;font-size:12px">3D view needs the Three.js library, ' +
+        'which loads from the internet.<br><br>The move list still works.</div>';
     }
   }
   S.view.setState(S.states[0]);
   renderMoves(); renderSteps();
   reveal($('solveOut'));
 }
-
 function renderMoves() {
   var box = $('moves'); box.innerHTML = '';
   S.solution.notation.forEach(function (n, i) {
@@ -1813,7 +2121,6 @@ function renderMoves() {
   $('btnPrev').disabled = S.idx === 0;
   $('btnNext').disabled = S.idx >= S.solution.length;
 }
-
 function renderSteps() {
   var box = $('steps'); box.innerHTML = '';
   S.solution.moves.forEach(function (m, i) {
@@ -1823,58 +2130,50 @@ function renderSteps() {
     box.appendChild(d);
   });
 }
-
+/* scroll the list itself, never the page — otherwise playback drags the cube
+   off screen on a phone */
+function keepInView(i) {
+  var list = $('steps'), row = list.children[i];
+  if (!row) return;
+  var top = row.offsetTop, h = row.offsetHeight;
+  if (top < list.scrollTop) list.scrollTop = top;
+  else if (top + h > list.scrollTop + list.clientHeight) list.scrollTop = top + h - list.clientHeight;
+}
 function goTo(i) {
   if (S.view.isAnimating()) S.view.cancel();
   S.idx = Math.max(0, Math.min(S.solution.length, i));
   S.view.setState(S.states[S.idx]);
-  renderMoves(); renderSteps();
-  keepInView($('steps').children[S.idx]);
+  renderMoves(); renderSteps(); keepInView(S.idx);
 }
-
 function stepForward(then) {
   if (S.idx >= S.solution.length || S.view.isAnimating()) { if (then) then(); return; }
   var m = S.solution.moves[S.idx];
-  var speed = parseInt($('speed').value, 10);
-  S.view.playMove(m, S.states[S.idx + 1], speed, function () {
+  S.view.playMove(m, S.states[S.idx + 1], parseInt($('speed').value, 10), function () {
     S.idx++; renderMoves(); renderSteps();
-    keepInView($('steps').children[Math.min(S.idx, S.solution.length - 1)]);
+    keepInView(Math.min(S.idx, S.solution.length - 1));
     if (then) then();
   });
 }
-
 function play() {
-  if (S.playing) { S.playing = false; $('btnPlay').textContent = '▶ Play'; return; }
+  if (S.playing) { S.playing = false; $('btnPlay').innerHTML = '&#9654; Play'; return; }
   if (S.idx >= S.solution.length) goTo(0);
-  S.playing = true; $('btnPlay').textContent = '⏸ Pause';
+  S.playing = true; $('btnPlay').innerHTML = '&#10073;&#10073; Pause';
   (function loop() {
     if (!S.playing) return;
-    if (S.idx >= S.solution.length) { S.playing = false; $('btnPlay').textContent = '▶ Play'; return; }
+    if (S.idx >= S.solution.length) { S.playing = false; $('btnPlay').innerHTML = '&#9654; Play'; return; }
     stepForward(function () { setTimeout(loop, 90); });
   })();
 }
-
-/* a do-nothing stand-in so the step list still works without WebGL */
-function stubView() {
-  return { setState: function () {}, playMove: function (m, a, d, done) { if (done) done(); },
-           isAnimating: function () { return false; }, cancel: function () {} };
-}
+function stopPlay() { S.playing = false; $('btnPlay').innerHTML = '&#9654; Play'; }
 
 /* ==================================================================== boot */
-function isTouchDevice() {
+function isTouch() {
   return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
          ('ontouchstart' in window && navigator.maxTouchPoints > 0);
 }
-
 function init() {
-  renderFaceList(); renderPalette(); setActive('U');
-  initPhotos(); initVideo(); initCamera();
-
-  // phones land on the camera tab, which is why they're here
-  if (isTouchDevice() && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    var camBtn = document.querySelector('.tabs button[data-pane="camera"]');
-    if (camBtn) setTimeout(function () { camBtn.click(); }, 0);
-  }
+  renderPalette(); setActive('U'); renderScanNet();
+  initPhotos(); initVideo(); initCamera(); initAdjuster();
 
   document.querySelectorAll('.tabs button').forEach(function (b) {
     b.onclick = function () {
@@ -1884,29 +2183,32 @@ function init() {
       $('pane-' + b.dataset.pane).classList.add('on');
     };
   });
+  if (isTouch() && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    var cb = document.querySelector('.tabs button[data-pane="camera"]');
+    if (cb) setTimeout(function () { cb.click(); }, 0);
+  }
 
   $('btnAnalyse').onclick = analyse;
   $('btnSolve').onclick = solve;
   $('btnPlay').onclick = play;
-  $('btnPrev').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; goTo(S.idx - 1); };
-  $('btnNext').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; stepForward(); };
-  $('btnReset').onclick = function () { S.playing = false; $('btnPlay').textContent = '▶ Play'; goTo(0); };
+  $('btnPrev').onclick = function () { stopPlay(); goTo(S.idx - 1); };
+  $('btnNext').onclick = function () { stopPlay(); stepForward(); };
+  $('btnReset').onclick = function () { stopPlay(); goTo(0); };
+  $('btnClear').onclick = function () { S.faces = {}; setActive('U'); $('btnAnalyse').disabled = true; };
   $('budget').oninput = function () { $('budgetVal').textContent = this.value + 's'; };
-  $('speed').oninput = function () { $('speedVal').textContent = (this.value / 1000).toFixed(2) + 's / move'; };
 
   $('btnDemo').onclick = function () {
     var r = CubeSolver.randomCube();
     S.facelets = CubeSolver.cubieToFacelets(r.cube);
     S.confidence = new Array(54).fill(1);
     $('reviewCard').classList.remove('disabled');
-    renderNet(); validate();
-    reveal($('reviewCard'));
+    renderNet(); validate(); reveal($('reviewCard'));
   };
 
   document.addEventListener('keydown', function (e) {
     if (!S.solution) return;
-    if (e.key === 'ArrowRight') { $('btnNext').click(); }
-    else if (e.key === 'ArrowLeft') { $('btnPrev').click(); }
+    if (e.key === 'ArrowRight') $('btnNext').click();
+    else if (e.key === 'ArrowLeft') $('btnPrev').click();
     else if (e.key === ' ') { e.preventDefault(); play(); }
   });
 }
